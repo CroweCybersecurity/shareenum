@@ -17,7 +17,7 @@ all: shareenum
 
 release: shareenum $(BUILD_FILE)
 
-debug: CDFLAGS += -g -DDEBUG -lresolv
+debug: CFLAGS += -g -DDEBUG -lresolv
 debug: shareenum $(BUILD_FILE)
 
 shareenum: $(OBJECTS)

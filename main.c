@@ -128,7 +128,7 @@ int main(int argc, char * argv[]) {
 	//If debugging is on, print out the other variables we got on the cmd line.
 #ifdef DEBUG
 		fprintf(stdout, "Target: %s\n", argv[optind]);
-		fprintf(stdout, "Start Point: %d\n", s);
+		fprintf(stdout, "Start Point: %d\n", startline);
 #endif
 
 	//Try and turn off buffering on stdout. 
@@ -234,5 +234,5 @@ void usage() {
 	printf("    -s NUM  - In the event that the scan needs restarted, skip the first NUM\n");
 	printf("              lines in the input file.  All output will be appended to the\n");
 	printf("              output file so previous results will not be lost. (Default: 0)\n");
-	printf("    -d NUM  - How many seconds should we wait between each target. (Default: 0)\n\n");
+	printf("    -d NUM  - How many seconds should we wait between each target. (Default: 0)\n");
 }

@@ -40,7 +40,7 @@ smb_result runhost(char * target, FILE * outfh, int maxdepth) {
 }
 
 void parsesmburl(char * url, char * host, char * share, char * object) {
-	char         buf[1024];
+	char         buf[2048];
 	char *       token;
 	char *       last;
 	const char   sep[2] = "/";
@@ -187,8 +187,8 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 
 	char                    buf[256];
 
-	char                    fullpath[1024];
-	char                    acl[2048];
+	char                    fullpath[2048];
+	char                    acl[1024];
 	long                    aclvalue;
 
 	char *                  permission = NULL;
@@ -204,8 +204,7 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 		//Create some buffers for us to use later. 
 		char    host[64] = "";
 		char    share[128] = "";
-		char    object[512] = "";
-
+		char    object[2048] = "";
 
 	//If we're at the maximum recursion depth as set on the command line, stop
 	if(depth == maxdepth) {
@@ -218,7 +217,7 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 	}
 
 #ifdef DEBUG
-	fprintf(stdout, "Attempting to browse to '%s'\n", path);
+	fprintf(stdout, "Attempting to browse to '%s'.  Current depth %d.\n", path, depth);
 #endif
 
 	//Try and get a directory listing of the object we just opened.
