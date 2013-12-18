@@ -19,7 +19,7 @@ smb_result runhost(char * target, FILE * outfh, int maxdepth) {
 	if(strncmp("smb://", target, 6) != 0) {
 		snprintf(buf, sizeof(buf), "smb://%s", target);
 	} else {
-		strncpy(buf, target, strlen(target));
+		strncpy(buf, target, strlen(target) + 1);
 	}
 
 	//Browse to our file and get the goods
@@ -44,6 +44,10 @@ void parsesmburl(char * url, char * host, char * share, char * object) {
 	char *       token;
 	char *       last;
 	const char   sep[2] = "/";
+
+	strcpy(host, "");
+	strcpy(share, "");
+	strcpy(object, "");
 
 	//Remove the smb:// from the front of our string, if we can't fail.
 	if(strncmp("smb://", url, 6) == 0) {
@@ -187,8 +191,8 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 
 	char                    buf[256];
 
-	char                    fullpath[2048];
-	char                    acl[1024];
+	char                    fullpath[2048] = "";
+	char                    acl[1024] = "";
 	long                    aclvalue;
 
 	char *                  permission = NULL;
@@ -201,10 +205,10 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 	int                     successfulcount = 0;
 	int                     shareerrorcount = 0;
 
-		//Create some buffers for us to use later. 
-		char    host[64] = "";
-		char    share[128] = "";
-		char    object[2048] = "";
+	//Create some buffers for us to use later. 
+	char    host[64] = "";
+	char    share[128] = "";
+	char    object[2048] = "";
 
 	//If we're at the maximum recursion depth as set on the command line, stop
 	if(depth == maxdepth) {
@@ -217,7 +221,7 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 	}
 
 #ifdef DEBUG
-	fprintf(stdout, "Attempting to browse to '%s'.  Current depth %d.\n", path, depth);
+	fprintf(stdout, "[%d/%d] Browsing to '%s'.\n", depth, maxdepth, path);
 #endif
 
 	//Try and get a directory listing of the object we just opened.
@@ -249,8 +253,16 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 		//parent path.
 		sprintf(fullpath, "%s/%s", path, dirent->name);
 
+#ifdef DEBUG
+	fprintf(stdout, "[%d/%d] Enumerated object '%s'.\n", depth, maxdepth, fullpath);
+#endif
+
 		//Parse out the various parts of the path for pretty output.
 		parsesmburl(fullpath, host, share, object);
+
+#ifdef DEBUG
+	fprintf(stdout, "[%d/%d] Split object Host: '%s' Share: '%s' Object: '%s'.\n", depth, maxdepth, host, share, object);
+#endif
 
 		//Depending on the type of object we're looking at do various things.
 		//Most of them are just to set a string for our output, but some 
