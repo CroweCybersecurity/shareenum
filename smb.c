@@ -63,6 +63,7 @@ void parsesmburl(char * url, char * host, char * share, char * object) {
 	}
 	//Set it to the host pointer.
 	strncpy(host, token, strlen(token));
+	host[strlen(token) + 1] = '\0';
 
 	//Get the second token, it should be our share. 
 	token = strtok(NULL, sep);
@@ -70,7 +71,8 @@ void parsesmburl(char * url, char * host, char * share, char * object) {
 		return;
 	}
 	//Set it to the share pointer. 
-	strncpy(share, token, strlen(token));
+	strncpy(share, token, strlen(token)+1);
+	share[strlen(token) + 1] = '\0';
 
 	//Now loop through the rest of the tokens and make the 
 	//file path.  Setting it to the directory pointerj
