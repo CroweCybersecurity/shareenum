@@ -3,7 +3,10 @@ shareenum
 
 This is a tool that attempts to enumerate the permissions shares, directories, and files on Microsoft Windows systems.  Using an implementation of the Samba (http://www.samba.org/) libsmbclient libraries this tool makes a SMB connection to a host and recursively gathers information over the file and directory entities, compared to several other share enumeration tools that use RPC calls to gather similar information.  Both ways work, this was a bit easier to implement.
 
-<<<<<<< Updated upstream
+```sh
+./shareenum -o output.csv -u DOMAIN\\username -p Password1 192.168.1.1
+```
+
 License
 --
 This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
@@ -11,11 +14,6 @@ This program is free software: you can redistribute it and/or modify it under th
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with this program. If not, see http://www.gnu.org/licenses/
-=======
-```sh
-./shareenum -o output.csv -u DOMAIN\\username -p Password1 192.168.1.1
-```
->>>>>>> Stashed changes
 
 Command Line Arguments
 --
