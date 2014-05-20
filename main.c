@@ -155,7 +155,7 @@ int main(int argc, char * argv[]) {
 			//If we're starting at 0, print the headers.  Otherwise assume
 			//we're restarting from an error or user shutdown/Ctrl-C.
 			if(startline == 0)
-				fprintf(outfile, "USER,HOST,SHARE,OBJECT,TYPE,PERMISSIONS,HIDDEN\n");
+				fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
 			//Read our file one line at a time into the buffer
 			while ( fgets ( buf, sizeof(buf), infile ) != NULL ) {
@@ -197,7 +197,7 @@ int main(int argc, char * argv[]) {
 		smb_result 		res;
 
 		//Print the header
-		fprintf(outfile, "HOST,SHARE,OBJECT,TYPE,PERMISSIONS,HIDDEN\n");
+		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
 		//Print the output for the user too so they know something happened.
 		if(res.code > 0) {

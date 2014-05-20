@@ -15,7 +15,7 @@ OBJECTS=$(SOURCES:.c=.o)
 
 all: shareenum
 
-release: shareenum $(BUILD_FILE)
+release: $(BUILD_FILE) shareenum
 
 debug: CFLAGS += -g -DDEBUG -lresolv
 debug: shareenum $(BUILD_FILE)

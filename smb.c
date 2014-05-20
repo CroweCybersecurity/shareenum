@@ -141,7 +141,7 @@ static SMBCCTX* create_context(void) {
 	smbc_setFunctionAuthData(ctx, auth_fn);
 	//Set the timeout, we get the command line option as seconds and the 
 	//function takes milliseconds.
-	smbc_setTimeout(ctx, gTimeout * 1000);
+	smbc_setTimeout(ctx, 200);
 	//If we got a hash at the command line, let the context know we're
 	//giving it a hash
 	smbc_setOptionUseNTHash(ctx, gPassIsHash);
@@ -241,7 +241,7 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 		//Parse this out for the error if we got one
 		parsesmburl(path, host, share, object);
 
-		fprintf(outfh, "%s,%s,%s,%s,,ERROR (%d): %s,\n", gUsername, host, share, object, errno, strerror(errno));
+		fprintf(outfh, "\"%s\",\"%s\",\"%s\",\"%s\",,ERROR (%d): %s,\n", gUsername, host, share, object, errno, strerror(errno));
 		return returnstatus;
 	}
 
@@ -345,7 +345,7 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 			hidden = ' ';
 
 		//Finally lets print the output all nicely to our file. 
-		fprintf(outfh, "%s,%s,%s,%s,%s,%s,%c\n", gUsername, host, share, object, type, permission, hidden);
+		fprintf(outfh, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%c\n", gUsername, host, share, object, type, permission, hidden);
 	}
 
 	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
