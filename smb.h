@@ -4,12 +4,17 @@
 #include <stdio.h> //Standard IO library
 #include <string.h> //C "string" library
 #include <stdlib.h> //GNU standard library
-#include <stdbool.h> //Enable C99 booleans for the talloc stuff
+#include <stdbool.h> //Enable C99 booleans for the talloc stuff in samba
 #include <libsmbclient.h> //Samba client headers
 #include <util/talloc_stack.h> //Samba TALLOC stack
 #include "colors.h"
 
-/* Data type for the results of any samba based directory loads
+
+
+
+/* Data type for the results of each taget that is provided to us
+ * that we are going to load, we may parse each recursively but this is the 
+ * generic results for each target.
  * code -> An integer for the result of the loading. 
  *      -1 = The directory loaded successfully
  *      0  = A non-critical error occured, see message
@@ -17,36 +22,46 @@
  *           See message. 
  *
  * message -> Description of the result, including success of error. 
+ * num_succeeds -> The number of successful data points that we gathered
+ * num_fails -> The number of failed data points that we gathered
  */
-typedef struct smb_result {
-	int code;
+typedef struct hostresult {
+	int    code;
 	char * message;
-	int succeeds;
-	int fails;
+	int    succeeds;
+	int    fails;
 } smb_result;
+
+/* Data type that includes the result for every object that is identified 
+ * within our recursive scanning.
+ * user -> The name of the user we scanned with
+ * host -> The hostname or IP of our target
+ * share -> The name of the share
+ * object -> The full path in the share to the object
+ * type -> The type of object (printer, file share, etc.)
+ * permissions -> string containing the permissions
+ * hidden -> Whether or not the share and device are hidden
+ */
+typedef struct objectresult {
+	char user[128];
+	char host[256];
+	char share[256];
+	char *object;
+	uint type;
+	long acl;
+	bool hidden;
+} objectresult
 
 /* Run a check against a host.  This creates a Samba context, browses to the path
  * creates a result object, and then clears the context after its finished.  
  *
  * PARAMETERS:
  *   char * - Pointer to a string containing the full path to our target.
- *   FILE * - Pointer to file hander of our output file.
  *   int    - How deep into the structure should we go.
  *
  * RETURN (smb_result): The result of our run of this host.
  */
-smb_result runhost(char * target, FILE * outfh, int maxdepth);
-
-/* Parse out a smb uri string into its various components.  Should typically be in 
- * the format of: smb://TARGET/SHARE/DIRECTORY/FILE
- *
- * PARAMETERS:
- *   char * - The host or IP that we're operating against.
- *   char * - The name of the share, printer, etc. that we've found.
- *   char * - The full path of the current object that we're browsing.
- * RETURN (void): None
- */
-void parsesmburl(char * url, char * host, char * share, char * object);
+smb_result browsetarget(char * target, int maxdepth);
 
 /* This is the function that browses a system and attempts to list all of the shares.
  *
@@ -61,7 +76,28 @@ void parsesmburl(char * url, char * host, char * share, char * object);
  * RETURN (smb_result): The result of our run on this host.  Will be aggregated if
  *                recursion is in use.
  */
-static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, int depth);
+static smb_result browsepath(SMBCCTX * ctx, char * path, int maxdepth, int depth);
+
+/* Parse out a smb uri string into its various components.  Should typically be in 
+ * the format of: smb://TARGET/SHARE/DIRECTORY/FILE
+ *
+ * PARAMETERS:
+ *   char * - The host or IP that we're operating against.
+ *   char * - The name of the share, printer, etc. that we've found.
+ *   char * - The full path of the current object that we're browsing.
+ * RETURN (void): None
+ */
+void parsesmburl(char * url, char * host, char * share, char * object);
+
+/* Parse the type of targeted object into something human readable
+ * PARAMETERS: 
+ *   uint - The smbc_type of the current object
+ * RETURN (char *): The human readable name of the type
+ */
+char * parsetype(uint type);
+
+
+char * parseacl(long acl);
 
 /* The authentication function that will be passed into the Samba context.  Whenever
  * it needs to authenticate it will call this function to get the data we need.
