@@ -1,10 +1,9 @@
 #include "smb.h"
 
-smb_result runhost(char * target, FILE * outfh, int maxdepth) {
+browseresult runhost(char * target, int maxdepth) {
 	SMBCCTX *       context;
 	char            buf[256];
-	smb_result      res;
-	int             rc;
+	browseresult    res;
 
 	//Try to create a context, if it's null that means we failed, so let the user know.
 	if((context = create_context()) == NULL) {
@@ -15,7 +14,7 @@ smb_result runhost(char * target, FILE * outfh, int maxdepth) {
 		return res;
 	}
 
-	//Check to see if the target is a valid URL, if not add the smb:// to the front.
+	//Check to see if the target has smb:// in front, if not add it.
 	if(strncmp("smb://", target, 6) != 0) {
 		snprintf(buf, sizeof(buf), "smb://%s", target);
 	} else {
@@ -25,18 +24,100 @@ smb_result runhost(char * target, FILE * outfh, int maxdepth) {
 	//Browse to our file and get the goods
 	res = browse(context, buf, outfh, maxdepth, 0);
 
-	//Output to the user.
-	if(res.code > 0) {
-		fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", res.message, res.code);
-	} else if(res.code == 0) {
-		fprintf(stdout, "[" ANSI_COLOR_BOLDYELLOW "*" ANSI_COLOR_RESET "] %s\n", res.message);
-	} else {
-		fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] %s\n", res.message);
-	}
-
 	//Delete our context, so there's less segfaults.
 	delete_context(context);
 	return res;
+}
+
+static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) { 
+	SMBCFILE *              fd;
+	struct smbc_dirent *    dirent;
+
+	char                    fullpath[2560] = "";
+	char                    acl[1024] = "";
+	long                    aclvalue;
+
+	browseresult			thisstatus = malloc(sizeof(browseresult));
+	smbresult               thisresult = malloc(sizeof(smbresult));
+	browseresult            subresults;
+
+	thisstatus.results = malloc(sizeof(smbresultlist));
+
+	//Try and get a directory listing of the object we just opened.
+	//This could be a workgroup, server, share, or directory and
+	//we'll get the full listing.  If it doesn't work, return our error.
+	//Errors will happen a lot in normal usage due to access denied.
+	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
+		thisstatus.code = errno;
+		thisstatus.message = strerror(errno);
+		thisstatus.results = NULL;
+		return thisstatus;
+	}
+
+	//Get the current entity of the directory item we're working on.
+	while ((dirent = smbc_getFunctionReaddir(ctx)(ctx, fd)) != NULL) {
+		//Check to see if what we're working on is blank, or one of the 
+		//special directory characters. If so, skip them.
+		if(strcmp(dirent->name, "") == 0) continue;
+		if(strcmp(dirent->name, ".") == 0) continue;
+		if(strcmp(dirent->name, "..") == 0) continue;
+
+		//Create the full path for this object by concating it with the 
+		//parent path.
+		sprintf(fullpath, "%s/%s", path, dirent->name);
+
+		//Parse out the various parts of the path for pretty output.
+		parsesmburl(fullpath, thisresult.host, thisresult.share, thisresult.object);
+
+		//Set the type so we have it
+		thisresult.type = dirent->smbc_type;
+
+		//Get the "dos_attr.mode" extended attribute which is the file permissions.
+		smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
+		if(errno == 13) {
+			thisresult.acl = -1;
+		} else {
+			//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
+			//do binary comparison on the settings eventually.
+			thisresult.acl = strtol(acl, NULL, 16);
+		}
+
+		smbresultlist_push(thisstatus.results, thisresult);
+
+		//If we have a directory or share we want to recurse to our max depth
+		if(depth < maxdepth) {
+			switch (dirent->smbc_type) {
+				case SMBC_FILE_SHARE:
+				case SMBC_DIR:
+					subresults = browse(ctx, fullpath, maxdepth, depth++);
+					smbresultlist_merge(thisstatus.results, subresults);
+			}
+		}
+	}
+
+
+	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
+	if(smbc_getFunctionClosedir(ctx)(ctx, fd) > 0) {
+		thisstatus.code = errno;
+		thisstatus.message = strerror(errno);
+		thisstatus.results = NULL;
+
+	//If successful, then we'll need to determine if we had any failures on some of the sub objects.
+	} else {
+		//We got some info, but not all.  Prep the response for the user.
+		if(shareerrorcount > 0) {
+			thisstatus.code = 0;
+			thisstatus.message = "We successfully got some results";
+
+		//We got everything we wanted, so lets let them know that too.
+		} else {
+			thisstatus.code = -1;
+			thisstatus.message = "We got everything we wanted!";
+		}
+	}
+
+	//Finally, we're done, lets return to the user. 
+	return thisstatus;
 }
 
 void parsesmburl(char * url, char * host, char * share, char * object) {
@@ -213,86 +294,4 @@ static void delete_context(SMBCCTX* ctx) {
 	smbc_free_context(ctx, 1);
 }
 
-static smb_result browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
-	SMBCFILE *              fd;
-	struct smbc_dirent *    dirent;
 
-	char                    fullpath[2048] = "";
-	char                    acl[1024] = "";
-	long                    aclvalue;
-
-	smb_result              thisstatus;
-	objectresult			thishost;
-	smb_result              substatus;
-
-	//Try and get a directory listing of the object we just opened.
-	//This could be a workgroup, server, share, or directory and
-	//we'll get the full listing.  If it doesn't work, return our error.
-	//Errors will happen a lot in normal usage due to access denied.
-	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
-		thisstatus.code = errno;
-		thisstatus.message = strerror(errno);
-		return thisstatus;
-	}
-
-	//Get the current entity of the directory item we're working on.
-	while ((dirent = smbc_getFunctionReaddir(ctx)(ctx, fd)) != NULL) {
-		//Check to see if what we're working on is blank, or one of the 
-		//special directory characters. If so, skip them.
-		if(strcmp(dirent->name, "") == 0) continue;
-		if(strcmp(dirent->name, ".") == 0) continue;
-		if(strcmp(dirent->name, "..") == 0) continue;
-
-		//Create the full path for this object by concating it with the 
-		//parent path.
-		sprintf(fullpath, "%s/%s", path, dirent->name);
-
-		//Parse out the various parts of the path for pretty output.
-		parsesmburl(fullpath, thishost.host, thishost.share, thishost.object);
-
-		//Set the type so we have it
-		thishost.type = dirent->smbc_type;
-
-		//Get the "dos_attr.mode" extended attribute which is the file permissions.
-		smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
-		if(errno == 13) {
-			thishost.acl = -1;
-		} else {
-			//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
-			//do binary comparison on the settings eventually.
-			thishost.acl = strtol(acl, NULL, 16);
-		}
-
-		//If we have a directory or share we want to recurse to our max depth
-		//TODO:  HANDLE RECURSION PROPERLY WITH STRUCTS
-		if(depth < maxdepth) {
-			switch (dirent->smbc_type) {
-				case SMBC_FILE_SHARE:
-				case SMBC_DIR:
-					substatus = browse(ctx, fullpath, maxdepth, depth++)
-			}
-		}
-	}
-
-	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
-	if(smbc_getFunctionClosedir(ctx)(ctx, fd) > 0) {
-		thisstatus.code = errno;
-		thisstatus.message = strerror(errno);
-
-	//If successful, then we'll need to determine if we had any failures on some of the sub objects.
-	} else {
-		//We got some info, but not all.  Prep the response for the user.
-		if(shareerrorcount > 0) {
-			thisstatus.code = 0;
-			thisstatus.message = NULL;
-
-		//We got everything we wanted, so lets let them know that too.
-		} else {
-			returnstatus.code = -1;
-			returnstatus.message = NULL;
-		}
-	}
-
-	//Finally, we're done, lets return to the user. 
-	return thisstatus;
-}
