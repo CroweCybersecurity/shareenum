@@ -50,6 +50,15 @@ void smbresultlist_push(smbresultlist** head, smbresult data);
  */
 int smbresultlist_pop(smbresultlist** head, smbresult *data);
 
+/* Takes two lists of smbresults and merges them together in no 
+ * particular order. 
+ * PARAMETERS: 
+ *   dst -> A pointer to the first item it the destination list.
+ *   src -> A pointer to the first item in the source list.
+ * RETURN (int): 0 if we failed and 1 if we succeeded.
+ */
+int smbresultlist_merge(smbresultlist** dst, smbresultlist* src);
+
 /* Given a head pointer to the list, this will return the 
  * number of items currently on it.  
  * PARAMETERS: 

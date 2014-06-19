@@ -20,11 +20,11 @@
  * num_succeeds -> The number of successful data points that we gathered
  * num_fails -> The number of failed data points that we gathered
  */
-typedef struct hostresult {
-	int    code;
-	int    succeeds;
-	int    fails;
-} smb_result;
+typedef struct browseresult {
+	int           code;
+	int           message;
+	smbresultlist results;
+} browseresult;
 
 /* Run a check against a host.  This creates a Samba context, browses to the path
  * creates a result object, and then clears the context after its finished.  
@@ -56,6 +56,7 @@ static smb_result browsepath(SMBCCTX * ctx, char * path, int maxdepth, int depth
  * the format of: smb://TARGET/SHARE/DIRECTORY/FILE
  *
  * PARAMETERS:
+ *   char * - The current URL including all of the info we're splitting up
  *   char * - The host or IP that we're operating against.
  *   char * - The name of the share, printer, etc. that we've found.
  *   char * - The full path of the current object that we're browsing.
@@ -63,17 +64,26 @@ static smb_result browsepath(SMBCCTX * ctx, char * path, int maxdepth, int depth
  */
 void parsesmburl(char * url, char * host, char * share, char * object);
 
-/* Parse the type of targeted object into something human readable
+/* Parse the type (Dir, File, etc.) of targeted object into something human readable
  * PARAMETERS: 
  *   uint - The smbc_type of the current object
  * RETURN (char *): The human readable name of the type
  */
 char * parsetype(uint type);
 
-
+/* Parse the ACL and determine the type of access we have (write, read only, etc.)
+ * PARAMETERS: 
+ *   long - An ACL that we have received from Samba, represented as a series of bytes
+ * RETURN (char *): A string containing our human readable access
+ */
 char * parseacccess(long acl);
 
-char * parsehidden(long acl);
+/* Parse the ACL to determine if the hidden flag is set
+ * PARAMETERS: 
+ *   long - An ACL that we have received from Samba, represented as a series of bytes
+ * RETURN (char *): A string containing our human readable access
+ */
+uint parsehidden(long acl);
 
 /* The authentication function that will be passed into the Samba context.  Whenever
  * it needs to authenticate it will call this function to get the data we need.
