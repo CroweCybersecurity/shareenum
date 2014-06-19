@@ -1,16 +1,11 @@
 #include <unistd.h> //Unix standard libraries
 #include <dirent.h> //Directory entities
 #include <errno.h> //Error numbers and information
-#include <stdio.h> //Standard IO library
 #include <string.h> //C "string" library
 #include <stdlib.h> //GNU standard library
 #include <stdbool.h> //Enable C99 booleans for the talloc stuff in samba
 #include <libsmbclient.h> //Samba client headers
 #include <util/talloc_stack.h> //Samba TALLOC stack
-#include "colors.h"
-
-
-
 
 /* Data type for the results of each taget that is provided to us
  * that we are going to load, we may parse each recursively but this is the 
@@ -27,30 +22,9 @@
  */
 typedef struct hostresult {
 	int    code;
-	char * message;
 	int    succeeds;
 	int    fails;
 } smb_result;
-
-/* Data type that includes the result for every object that is identified 
- * within our recursive scanning.
- * user -> The name of the user we scanned with
- * host -> The hostname or IP of our target
- * share -> The name of the share
- * object -> The full path in the share to the object
- * type -> The type of object (printer, file share, etc.)
- * permissions -> string containing the permissions
- * hidden -> Whether or not the share and device are hidden
- */
-typedef struct objectresult {
-	char user[128];
-	char host[256];
-	char share[256];
-	char *object;
-	uint type;
-	long acl;
-	bool hidden;
-} objectresult
 
 /* Run a check against a host.  This creates a Samba context, browses to the path
  * creates a result object, and then clears the context after its finished.  
@@ -97,7 +71,9 @@ void parsesmburl(char * url, char * host, char * share, char * object);
 char * parsetype(uint type);
 
 
-char * parseacl(long acl);
+char * parseacccess(long acl);
+
+char * parsehidden(long acl);
 
 /* The authentication function that will be passed into the Samba context.  Whenever
  * it needs to authenticate it will call this function to get the data we need.

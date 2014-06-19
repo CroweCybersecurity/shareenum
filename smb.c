@@ -61,6 +61,7 @@ void parsesmburl(char * url, char * host, char * share, char * object) {
 	if(token == NULL) {
 		return;
 	}
+
 	//Set it to the host pointer.
 	strncpy(host, token, strlen(token));
 	host[strlen(token) + 1] = '\0';
@@ -70,6 +71,7 @@ void parsesmburl(char * url, char * host, char * share, char * object) {
 	if(token == NULL)  {
 		return;
 	}
+
 	//Set it to the share pointer. 
 	strncpy(share, token, strlen(token)+1);
 	share[strlen(token) + 1] = '\0';
@@ -83,15 +85,61 @@ void parsesmburl(char * url, char * host, char * share, char * object) {
 	}
 }
 
+char * parsetype(uint type) {
+		//We need to translate the type to something readable for our output
+		switch(type) {
+			case SMBC_WORKGROUP:
+				return "WORKGROUP";
+			case SMBC_SERVER:
+				return "SERVER";
+			case SMBC_FILE_SHARE:
+				return "FILE_SHARE";
+			case SMBC_PRINTER_SHARE:
+				return "PRINTER_SHARE";
+			case SMBC_COMMS_SHARE:
+				return "COMMS_SHARE";
+			case SMBC_IPC_SHARE:
+				return "IPC_SHARE";
+			case SMBC_DIR:
+				return "DIR";
+			case SMBC_FILE:
+				return "FILE";
+			case SMBC_LINK:
+				return "LINK";
+			default: 
+				return "UNKNOWN";
+		}
+}
+
+char * parseacccess(long acl) {
+	//If the error was 13, that means we got an access denied. 
+	if (errno == 13) 
+		return "ACCESS DENIED";
+	//Next check the binary to see if we've only got read only permissions. 
+	else if (aclvalue & SMBC_DOS_MODE_READONLY)
+		return "READ";
+	else 
+	//Otherwise we have write permissions. 
+		return "WRITE";
+}
+
+uint parsehidden(long acl) {
+	//Check to see if the hidden flag is set, if so lets return it
+	if (aclvalue & SMBC_DOS_MODE_HIDDEN)
+		return 1;
+	else
+		return 0;
+}
+
 static void auth_fn(
-		const char *    pServer,
-		const char *    pShare,
-		char *          pWorkgroup,
-		int             maxLenWorkgroup,
-		char *          pUsername,
-		int             maxLenUsername,
-		char *          pPassword,
-		int             maxLenPassword) {
+	const char *    pServer,
+	const char *    pShare,
+	char *          pWorkgroup,
+	int             maxLenWorkgroup,
+	char *          pUsername,
+	int             maxLenUsername,
+	char *          pPassword,
+	int             maxLenPassword) {
 
 	//Get our external globals that we got from the command line
 	extern char *   gUsername;
@@ -117,17 +165,11 @@ static SMBCCTX* create_context(void) {
 	extern int 		gTimeout;
 	extern int 		gPassIsHash;
 
-#ifdef DEBUG
-	fprintf(stdout, "SMB: Attempting to create context.\n");
-#endif
-
 	//Create the Samba context struct , if it didn't work quit. 
 	if((ctx = smbc_new_context()) == NULL)
 		return NULL;
 
 #ifdef DEBUG
-	fprintf(stdout, "SMB: Setting options in context.\n");
-
 	//Set the options for our context.  a
 	//If its enabled at the command line, turn on Samba library debugging
 	smbc_setDebug(ctx, 1);
@@ -146,19 +188,11 @@ static SMBCCTX* create_context(void) {
 	//giving it a hash
 	smbc_setOptionUseNTHash(ctx, gPassIsHash);
 
-#ifdef DEBUG
-	fprintf(stdout, "SMB: Initializing the context.\n");
-#endif
-
 	//Initialize our context with the options that we have set or null on fail.
 	if(smbc_init_context(ctx) == NULL) {
 		smbc_free_context(ctx, 1);
 		return NULL;
 	}
-
-#ifdef DEBUG
-	fprintf(stdout, "SMB: Context created.\n");
-#endif
 
 	return ctx;
 }
@@ -167,82 +201,38 @@ static void delete_context(SMBCCTX* ctx) {
 	//Trying to fix the error:  no talloc stackframe at ../source3/libsmb/cliconnect.c:2637, leaking memory
 	TALLOC_CTX *frame = talloc_stackframe();
 
-#ifdef DEBUG
-	fprintf(stdout, "SMB: Purging cached servers.\n");
-#endif
-
 	//First we need to purge the cache of servers the context has.
 	//This should also free all the used memory allocations.
 	smbc_getFunctionPurgeCachedServers(ctx)(ctx);
 
+	//We're done with the frame, free it up now.
 	TALLOC_FREE(frame);
-
-#ifdef DEBUG
-	fprintf(stdout, "SMB: Freeing the context.\n");
-#endif
 
 	//Next we need to free the context itself, and free all the 
 	//memory it used.
 	smbc_free_context(ctx, 1);
 }
 
-static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, int depth) {
-	extern char *           gUsername;
-
+static smb_result browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 	SMBCFILE *              fd;
 	struct smbc_dirent *    dirent;
-	struct stat             st;
-
-	char                    buf[256];
 
 	char                    fullpath[2048] = "";
 	char                    acl[1024] = "";
 	long                    aclvalue;
 
-	char *                  permission = NULL;
-	char                    hidden = ' ';
-	char *                  type;
-	int                     ret;
-	smb_result              returnstatus;
-	smb_result              tempstatus;
-
-	int                     successfulcount = 0;
-	int                     shareerrorcount = 0;
-
-	//Create some buffers for us to use later. 
-	char    host[64] = "";
-	char    share[128] = "";
-	char    object[2048] = "";
-
-	//If we're at the maximum recursion depth as set on the command line, stop
-	if(depth == maxdepth) {
-		returnstatus.code = -2;
-		returnstatus.message = "Recursion depth reached.";
-		returnstatus.succeeds = 0;
-		returnstatus.fails = 0;
-
-		return returnstatus;
-	}
-
-#ifdef DEBUG
-	fprintf(stdout, "[%d/%d] Browsing to '%s'.\n", depth, maxdepth, path);
-#endif
+	smb_result              thisstatus;
+	objectresult			thishost;
+	smb_result              substatus;
 
 	//Try and get a directory listing of the object we just opened.
 	//This could be a workgroup, server, share, or directory and
 	//we'll get the full listing.  If it doesn't work, return our error.
 	//Errors will happen a lot in normal usage due to access denied.
 	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
-		returnstatus.code = errno;
-		returnstatus.message = strerror(errno);
-		returnstatus.succeeds = 0;
-		returnstatus.fails = 1;
-
-		//Parse this out for the error if we got one
-		parsesmburl(path, host, share, object);
-
-		fprintf(outfh, "\"%s\",\"%s\",\"%s\",\"%s\",,ERROR (%d): %s,\n", gUsername, host, share, object, errno, strerror(errno));
-		return returnstatus;
+		thisstatus.code = errno;
+		thisstatus.message = strerror(errno);
+		return thisstatus;
 	}
 
 	//Get the current entity of the directory item we're working on.
@@ -257,124 +247,52 @@ static smb_result browse(SMBCCTX *ctx, char * path, FILE * outfh, int maxdepth, 
 		//parent path.
 		sprintf(fullpath, "%s/%s", path, dirent->name);
 
-#ifdef DEBUG
-	fprintf(stdout, "[%d/%d] Enumerated object '%s'.\n", depth, maxdepth, fullpath);
-#endif
-
 		//Parse out the various parts of the path for pretty output.
-		parsesmburl(fullpath, host, share, object);
+		parsesmburl(fullpath, thishost.host, thishost.share, thishost.object);
 
-#ifdef DEBUG
-	fprintf(stdout, "[%d/%d] Split object Host: '%s' Share: '%s' Object: '%s'.\n", depth, maxdepth, host, share, object);
-#endif
-
-		//Depending on the type of object we're looking at do various things.
-		//Most of them are just to set a string for our output, but some 
-		//have other things.
-		switch(dirent->smbc_type) {
-			case SMBC_WORKGROUP:
-				type = "WORKGROUP";
-				break;
-			case SMBC_SERVER:
-				type = "SERVER";
-				break;
-			case SMBC_FILE_SHARE:
-				type = "FILE_SHARE";
-				//If its a share go ahead and recurse into it.  If we're at
-				//max depth then we'll be fine. 
-				tempstatus = browse(ctx, fullpath, outfh, maxdepth, depth + 1);
-				successfulcount = successfulcount + tempstatus.succeeds;
-				shareerrorcount = shareerrorcount + tempstatus.fails;
-				break;
-			case SMBC_PRINTER_SHARE:
-				type = "PRINTER_SHARE";
-				break;
-			case SMBC_COMMS_SHARE:
-				type = "COMMS_SHARE";
-				break;
-			case SMBC_IPC_SHARE:
-				type = "IPC_SHARE";
-				break;
-			case SMBC_DIR:
-				type = "DIR";
-				//Same thing as above, if its a directory we'll want to recurse as well. 
-				tempstatus = browse(ctx, fullpath, outfh, maxdepth, depth + 1);
-				successfulcount = successfulcount + tempstatus.succeeds;
-				shareerrorcount = shareerrorcount + tempstatus.fails;
-				break;
-			case SMBC_FILE:
-				type = "FILE";
-				break;
-			case SMBC_LINK:
-				type = "LINK";
-				break;
-			default: 
-				type = "UNKNOWN";
-				break;
-		}
+		//Set the type so we have it
+		thishost.type = dirent->smbc_type;
 
 		//Get the "dos_attr.mode" extended attribute which is the file permissions.
-		ret = smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
-
-		//If we got a return of less than 0 that means it failed.  If we were trying to 
-		//get info for IPC$ we only care about access denied, otherwise it throws tons of weird stuff.
-		if (ret < 0 && errno != 13 && strcmp(dirent->name, "IPC$") != 0) {
-			shareerrorcount++;
+		smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
+		if(errno == 13) {
+			thishost.acl = -1;
 		} else {
-			successfulcount++;
+			//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
+			//do binary comparison on the settings eventually.
+			thishost.acl = strtol(acl, NULL, 16);
 		}
 
-		//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
-		//do binary comparison on the settings. 
-		aclvalue = strtol(acl, NULL, 16);
-
-		//If the error was 13, that means we got an access denied. 
-		if (errno == 13) 
-			permission = "ACCESS DENIED";
-		//Next check the binary to see if we've only got read only permissions. 
-		else if (aclvalue & SMBC_DOS_MODE_READONLY)
-			permission = "READ";
-		else 
-		//Otherwise we have write permissions. 
-			permission = "WRITE";
-
-		//Also, check to see if the hidden flag is set, if so lets show it. 
-		if (aclvalue & SMBC_DOS_MODE_HIDDEN)
-			hidden = 'X';
-		else
-			hidden = ' ';
-
-		//Finally lets print the output all nicely to our file. 
-		fprintf(outfh, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%c\n", gUsername, host, share, object, type, permission, hidden);
+		//If we have a directory or share we want to recurse to our max depth
+		//TODO:  HANDLE RECURSION PROPERLY WITH STRUCTS
+		if(depth < maxdepth) {
+			switch (dirent->smbc_type) {
+				case SMBC_FILE_SHARE:
+				case SMBC_DIR:
+					substatus = browse(ctx, fullpath, maxdepth, depth++)
+			}
+		}
 	}
 
 	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
 	if(smbc_getFunctionClosedir(ctx)(ctx, fd) > 0) {
-		returnstatus.code = errno;
-		returnstatus.message = strerror(errno);
-		returnstatus.succeeds = successfulcount;
-		returnstatus.fails = shareerrorcount;
+		thisstatus.code = errno;
+		thisstatus.message = strerror(errno);
 
 	//If successful, then we'll need to determine if we had any failures on some of the sub objects.
 	} else {
 		//We got some info, but not all.  Prep the response for the user.
 		if(shareerrorcount > 0) {
-			snprintf(buf, sizeof(buf), "Error on %d items. Got %d items.", shareerrorcount, successfulcount);
-			returnstatus.code = 0;
-			returnstatus.message = buf;
-			returnstatus.succeeds = successfulcount;
-			returnstatus.fails = shareerrorcount;
+			thisstatus.code = 0;
+			thisstatus.message = NULL;
 
 		//We got everything we wanted, so lets let them know that too.
 		} else {
-			snprintf(buf, sizeof(buf), "Gathered information on %d items.", successfulcount);
 			returnstatus.code = -1;
-			returnstatus.message = buf;
-			returnstatus.succeeds = successfulcount;
-			returnstatus.fails = shareerrorcount;
+			returnstatus.message = NULL;
 		}
 	}
 
 	//Finally, we're done, lets return to the user. 
-	return returnstatus;
+	return thisstatus;
 }
