@@ -145,7 +145,7 @@ int main(int argc, char * argv[]) {
 		//And the number of digits in that total for pretty output
 		int				totallen = numdigits(total);
 		//Create a struct for our results to print
-		smb_result 		res;
+		browseresult	res;
 		//And a buffer to read the file into!
 		char 			buf[1024];
 
@@ -177,7 +177,7 @@ int main(int argc, char * argv[]) {
 				fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, current, total, buf);
 
 				//Run the target that we pulled from the file and get the results. 
-				res = runhost(buf, outfile, recursion);
+				res = runtarget(buf, recursion);
 
 				//We'll delay as long as our user asked. 
 				sleep(linedelay);
@@ -194,7 +194,7 @@ int main(int argc, char * argv[]) {
 	//Otherwise we'll assume our target is an IP or hostname
 	} else {
 		//struct to hold our results!
-		smb_result 		res;
+		browseresult 		res;
 
 		//Print the header
 		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
@@ -209,7 +209,7 @@ int main(int argc, char * argv[]) {
 		}
 
 		//Run the target and get results
-		res = runhost(target, outfile, recursion);
+		res = runtarget(target, recursion);
 	}
 
 	// We're done, quit and tell the system it worked.

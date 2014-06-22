@@ -10,7 +10,7 @@ CFLAGS=-DMAJOR_REVISION=$(MAJOR_VERSION) -DMINOR_REVISION=$(MINOR_VERSION) -DBUI
 LDFLAGS=
 
 
-SOURCES=helpers.c smb.c main.c
+SOURCES=helpers.c smbresult.c smb.c main.c
 OBJECTS=$(SOURCES:.c=.o)
 
 all: shareenum

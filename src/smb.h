@@ -6,6 +6,7 @@
 #include <stdbool.h> //Enable C99 booleans for the talloc stuff in samba
 #include <libsmbclient.h> //Samba client headers
 #include <util/talloc_stack.h> //Samba TALLOC stack
+#include "smbresult.h"
 
 /* Data type for the results of each taget that is provided to us
  * that we are going to load, we may parse each recursively but this is the 
@@ -21,9 +22,9 @@
  * num_fails -> The number of failed data points that we gathered
  */
 typedef struct browseresult {
-	int           code;
-	int           message;
-	smbresultlist results;
+	int            code;
+	char*          message;
+	smbresultlist* results;
 } browseresult;
 
 /* Run a check against a host.  This creates a Samba context, browses to the path
@@ -35,7 +36,7 @@ typedef struct browseresult {
  *
  * RETURN (smb_result): The result of our run of this host.
  */
-smb_result browsetarget(char * target, int maxdepth);
+browseresult runtarget(char * target, int maxdepth);
 
 /* This is the function that browses a system and attempts to list all of the shares.
  *
@@ -50,7 +51,7 @@ smb_result browsetarget(char * target, int maxdepth);
  * RETURN (smb_result): The result of our run on this host.  Will be aggregated if
  *                recursion is in use.
  */
-static smb_result browsepath(SMBCCTX * ctx, char * path, int maxdepth, int depth);
+static browseresult browse(SMBCCTX * ctx, char * path, int maxdepth, int depth);
 
 /* Parse out a smb uri string into its various components.  Should typically be in 
  * the format of: smb://TARGET/SHARE/DIRECTORY/FILE

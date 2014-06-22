@@ -25,11 +25,11 @@ int smbresultlist_pop(smbresultlist** head, smbresult* data) {
 	return 1;                  //Finally, return that it worked
 }
 
-int smbresultlist_merge(smbresultlist** dst, smbresultlist** src) {
+uint smbresultlist_merge(smbresultlist** dst, smbresultlist** src) {
 	smbresult tmp;             //Tmp variable to hold the current data
 
 	//Pop the current one of src and push it onto dst
-	while(smbresultlist_pop(src, *tmp) > 0) {
+	while(smbresultlist_pop(src, &tmp) > 0) {
 		smbresultlist_push(dst, tmp);
 	}
 }

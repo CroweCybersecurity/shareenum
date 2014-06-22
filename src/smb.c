@@ -1,6 +1,6 @@
 #include "smb.h"
 
-browseresult runhost(char * target, int maxdepth) {
+browseresult runtarget(char * target, int maxdepth) {
 	SMBCCTX *       context;
 	char            buf[256];
 	browseresult    res;
@@ -9,7 +9,6 @@ browseresult runhost(char * target, int maxdepth) {
 	if((context = create_context()) == NULL) {
 		res.code = 1;
 		res.message = "Unable to create samba context.\n";
-		//res.objects = 0;
 
 		return res;
 	}
@@ -22,14 +21,14 @@ browseresult runhost(char * target, int maxdepth) {
 	}
 
 	//Browse to our file and get the goods
-	res = browse(context, buf, outfh, maxdepth, 0);
+	res = browse(context, buf, maxdepth, 0);
 
 	//Delete our context, so there's less segfaults.
 	delete_context(context);
 	return res;
 }
 
-static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) { 
+static browseresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) { 
 	SMBCFILE *              fd;
 	struct smbc_dirent *    dirent;
 
@@ -37,11 +36,8 @@ static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 	char                    acl[1024] = "";
 	long                    aclvalue;
 
-	browseresult			thisstatus = malloc(sizeof(browseresult));
-	smbresult               thisresult = malloc(sizeof(smbresult));
+	browseresult			thisstatus;
 	browseresult            subresults;
-
-	thisstatus.results = malloc(sizeof(smbresultlist));
 
 	//Try and get a directory listing of the object we just opened.
 	//This could be a workgroup, server, share, or directory and
@@ -50,12 +46,12 @@ static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
 		thisstatus.code = errno;
 		thisstatus.message = strerror(errno);
-		thisstatus.results = NULL;
 		return thisstatus;
 	}
 
 	//Get the current entity of the directory item we're working on.
 	while ((dirent = smbc_getFunctionReaddir(ctx)(ctx, fd)) != NULL) {
+		smbresult           thisresult;
 		//Check to see if what we're working on is blank, or one of the 
 		//special directory characters. If so, skip them.
 		if(strcmp(dirent->name, "") == 0) continue;
@@ -82,7 +78,7 @@ static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 			thisresult.acl = strtol(acl, NULL, 16);
 		}
 
-		smbresultlist_push(thisstatus.results, thisresult);
+		smbresultlist_push(&thisstatus.results, thisresult);
 
 		//If we have a directory or share we want to recurse to our max depth
 		if(depth < maxdepth) {
@@ -90,7 +86,7 @@ static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 				case SMBC_FILE_SHARE:
 				case SMBC_DIR:
 					subresults = browse(ctx, fullpath, maxdepth, depth++);
-					smbresultlist_merge(thisstatus.results, subresults);
+					smbresultlist_merge(&thisstatus.results, &subresults.results);
 			}
 		}
 	}
@@ -104,16 +100,8 @@ static smbresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 
 	//If successful, then we'll need to determine if we had any failures on some of the sub objects.
 	} else {
-		//We got some info, but not all.  Prep the response for the user.
-		if(shareerrorcount > 0) {
-			thisstatus.code = 0;
-			thisstatus.message = "We successfully got some results";
-
-		//We got everything we wanted, so lets let them know that too.
-		} else {
-			thisstatus.code = -1;
-			thisstatus.message = "We got everything we wanted!";
-		}
+		thisstatus.code = 0;
+		thisstatus.message = "We successfully got some results";
 	}
 
 	//Finally, we're done, lets return to the user. 
@@ -193,11 +181,8 @@ char * parsetype(uint type) {
 }
 
 char * parseacccess(long acl) {
-	//If the error was 13, that means we got an access denied. 
-	if (errno == 13) 
-		return "ACCESS DENIED";
 	//Next check the binary to see if we've only got read only permissions. 
-	else if (aclvalue & SMBC_DOS_MODE_READONLY)
+	if (acl & SMBC_DOS_MODE_READONLY)
 		return "READ";
 	else 
 	//Otherwise we have write permissions. 
@@ -206,7 +191,7 @@ char * parseacccess(long acl) {
 
 uint parsehidden(long acl) {
 	//Check to see if the hidden flag is set, if so lets return it
-	if (aclvalue & SMBC_DOS_MODE_HIDDEN)
+	if (acl & SMBC_DOS_MODE_HIDDEN)
 		return 1;
 	else
 		return 0;
