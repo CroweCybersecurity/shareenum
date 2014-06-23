@@ -11,21 +11,31 @@
 /* Data type for the results of each taget that is provided to us
  * that we are going to load, we may parse each recursively but this is the 
  * generic results for each target.
- * code -> An integer for the result of the loading. 
+ * code     - An integer for the result of the loading. 
  *      -1 = The directory loaded successfully
  *      0  = A non-critical error occured, see message
  *      >0 = A critical error occured and data was not gathered.
  *           See message. 
  *
- * message -> Description of the result, including success of error. 
- * num_succeeds -> The number of successful data points that we gathered
- * num_fails -> The number of failed data points that we gathered
+ * message  - Description of the result, including success or error. 
+ * results  - A linked list of results objects 
  */
 typedef struct browseresult {
 	int            code;
-	char*          message;
-	smbresultlist* results;
+	char           *message;
+	smbresultlist  *results;
 } browseresult;
+
+/* The following two functions are a set of instantiators for browseresults
+ * so that we know we've got them setup nicely.  
+ * PARAMETERS: 
+ *   code    - The return code, see above struct definition for values
+ *   message - Description of our results
+ *   results - Linked list of results
+ * RETURN (browseresult): A pointer to the newly created browseresult
+ */
+browseresult* createBrowseResultEmpty();
+browseresult* createBrowseResult(int code, char *message, smbresultlist *results);
 
 /* Run a check against a host.  This creates a Samba context, browses to the path
  * creates a result object, and then clears the context after its finished.  
@@ -36,7 +46,17 @@ typedef struct browseresult {
  *
  * RETURN (smb_result): The result of our run of this host.
  */
-browseresult runtarget(char * target, int maxdepth);
+browseresult runtarget(char *target, int maxdepth);
+
+/* Takes a smbresult object and converts it to a string formatted in CSV
+ * formatting including field terminators in the format: 
+ * "host","share","object","type","permissions","hidden"
+ * PARAMETERS: 
+ *   data - The smbresult containing the data to format.
+ *   buf  - Pointer to the string buffer where we should put the output.
+ * RETURN (void): None
+ */
+void smbresult_tocsv(smbresult data, char *buf);
 
 /* This is the function that browses a system and attempts to list all of the shares.
  *
@@ -51,7 +71,7 @@ browseresult runtarget(char * target, int maxdepth);
  * RETURN (smb_result): The result of our run on this host.  Will be aggregated if
  *                recursion is in use.
  */
-static browseresult browse(SMBCCTX * ctx, char * path, int maxdepth, int depth);
+static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth);
 
 /* Parse out a smb uri string into its various components.  Should typically be in 
  * the format of: smb://TARGET/SHARE/DIRECTORY/FILE
@@ -63,21 +83,21 @@ static browseresult browse(SMBCCTX * ctx, char * path, int maxdepth, int depth);
  *   char * - The full path of the current object that we're browsing.
  * RETURN (void): None
  */
-void parsesmburl(char * url, char * host, char * share, char * object);
+void parsesmburl(char *url, char **host, char **share, char **object);
 
 /* Parse the type (Dir, File, etc.) of targeted object into something human readable
  * PARAMETERS: 
  *   uint - The smbc_type of the current object
  * RETURN (char *): The human readable name of the type
  */
-char * parsetype(uint type);
+char * parsetype(int type);
 
 /* Parse the ACL and determine the type of access we have (write, read only, etc.)
  * PARAMETERS: 
  *   long - An ACL that we have received from Samba, represented as a series of bytes
  * RETURN (char *): A string containing our human readable access
  */
-char * parseacccess(long acl);
+char * parseaccess(long acl);
 
 /* Parse the ACL to determine if the hidden flag is set
  * PARAMETERS: 
@@ -97,13 +117,13 @@ uint parsehidden(long acl);
  *   that need to have information added for authentication.
  */
 static void auth_fn(
-			const char * pServer,
-			const char * pShare,
-			char * pWorkgroup,
+			const char *pServer,
+			const char *pShare,
+			char *pWorkgroup,
 			int maxLenWorkgroup,
-			char * pUsername,
+			char *pUsername,
 			int maxLenUsername,
-			char * pPassword,
+			char *pPassword,
 			int maxLenPassword);
 
 /* Create a Samba context for us to handle all of our connections with. This will pull
@@ -124,5 +144,5 @@ static SMBCCTX* create_context(void);
  *
  * RETURN (void): None
  */
-static void delete_context(SMBCCTX* ctx);
+static void delete_context(SMBCCTX *ctx);
 

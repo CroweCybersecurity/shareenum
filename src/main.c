@@ -113,7 +113,7 @@ int main(int argc, char * argv[]) {
 		exit(1);
 	}
 
-	//Tell the user what creds we're using, if any.  Because they're whiny and dumb sometimes.
+	//Tell the user what creds we're using, if any.  Because we want to make sure they know.
 	fprintf(stdout, "\n");
 	fprintf(stdout, ANSI_COLOR_BOLDGREEN "Username: " ANSI_COLOR_RESET "%s\n", gUsername);
 	if(gPassIsHash == 1)
@@ -122,7 +122,7 @@ int main(int argc, char * argv[]) {
 		fprintf(stdout, ANSI_COLOR_BOLDGREEN "Password: " ANSI_COLOR_RESET "%s\n", gPassword);
 	fprintf(stdout, "\n");
 
-	//Wait three seconds because McAtee is stupid
+	//Wait three seconds because McAtee
 	sleep(3);
 
 	//If debugging is on, print out the other variables we got on the cmd line.
@@ -144,7 +144,7 @@ int main(int argc, char * argv[]) {
 		int 			total = file_countlines(infile);
 		//And the number of digits in that total for pretty output
 		int				totallen = numdigits(total);
-		//Create a struct for our results to print
+		//Create a struct for our results for each line
 		browseresult	res;
 		//And a buffer to read the file into!
 		char 			buf[1024];
@@ -199,24 +199,25 @@ int main(int argc, char * argv[]) {
 		//Print the header
 		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
-		//Print the output for the user too so they know something happened.
-		if(res.code > 0) {
-			fprintf(stdout, ANSI_COLOR_CYAN "%-20s " ANSI_COLOR_RESET, target);
-		} else if (res.code == 0) {
-			fprintf(stdout, ANSI_COLOR_CYAN "%-20s " ANSI_COLOR_RESET, target);
-		} else {
-			fprintf(stdout, ANSI_COLOR_CYAN "%-20s " ANSI_COLOR_RESET, target);
-		}
-
 		//Run the target and get results
 		res = runtarget(target, recursion);
-	}
 
-	// We're done, quit and tell the system it worked.
-	exit(0);
+		smbresult tmp;
+		char *buf;
+		while(smbresultlist_pop(&res.results, &tmp)) {
+			smbresult_tocsv(tmp, buf);
+			fprintf(outfile, "\"%s\",%s\n", gUsername, buf);
+		}
+
+		if(res.code > 0) {
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", res.message, res.code);
+		} else {
+			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] %s\n", res.message);
+		}
+	}
 }
 
-//If you don't get this, go home and never program again.
+//If you don't get this, try again harder
 void usage() {
 	printf("Usage: shareenum -o FILE TARGET\n");
 	printf("    TARGET  - REQUIRED Full path or a file of paths to list the shares, files\n");

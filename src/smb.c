@@ -1,7 +1,18 @@
 #include "smb.h"
 
-browseresult runtarget(char * target, int maxdepth) {
-	SMBCCTX *       context;
+browseresult* createBrowseResultEmpty() {
+	return createBrowseResult(0, "", NULL);
+}
+
+browseresult* createBrowseResult(int code, char *message, smbresultlist *results) {
+	browseresult *tmp = malloc(sizeof(browseresult));
+	tmp->code = code;
+	tmp->message = message;
+	tmp->results = results;
+}
+
+browseresult runtarget(char *target, int maxdepth) {
+	SMBCCTX         *context;
 	char            buf[256];
 	browseresult    res;
 
@@ -9,7 +20,6 @@ browseresult runtarget(char * target, int maxdepth) {
 	if((context = create_context()) == NULL) {
 		res.code = 1;
 		res.message = "Unable to create samba context.\n";
-
 		return res;
 	}
 
@@ -28,30 +38,39 @@ browseresult runtarget(char * target, int maxdepth) {
 	return res;
 }
 
-static browseresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) { 
-	SMBCFILE *              fd;
-	struct smbc_dirent *    dirent;
+static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) { 
+	SMBCFILE                *fd;
+	struct smbc_dirent      *dirent;
 
 	char                    fullpath[2560] = "";
 	char                    acl[1024] = "";
-	long                    aclvalue;
 
-	browseresult			thisstatus;
+	browseresult			*thisstatus = createBrowseResultEmpty();
 	browseresult            subresults;
+
+	int                     type;
+	long                    aclvalue;
 
 	//Try and get a directory listing of the object we just opened.
 	//This could be a workgroup, server, share, or directory and
 	//we'll get the full listing.  If it doesn't work, return our error.
 	//Errors will happen a lot in normal usage due to access denied.
 	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
-		thisstatus.code = errno;
-		thisstatus.message = strerror(errno);
-		return thisstatus;
+		smbresult *tmp = createSMBResultEmpty();
+		parsesmburl(path, &tmp->host, &tmp->share, &tmp->object);
+		tmp->type = -1;
+
+		thisstatus->code = errno;
+		thisstatus->message = strerror(errno);
+		smbresultlist_push(&thisstatus->results, tmp);
+
+		return *thisstatus;
 	}
 
 	//Get the current entity of the directory item we're working on.
 	while ((dirent = smbc_getFunctionReaddir(ctx)(ctx, fd)) != NULL) {
-		smbresult           thisresult;
+		smbresult *thisresult = createSMBResultEmpty();
+
 		//Check to see if what we're working on is blank, or one of the 
 		//special directory characters. If so, skip them.
 		if(strcmp(dirent->name, "") == 0) continue;
@@ -63,22 +82,22 @@ static browseresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 		sprintf(fullpath, "%s/%s", path, dirent->name);
 
 		//Parse out the various parts of the path for pretty output.
-		parsesmburl(fullpath, thisresult.host, thisresult.share, thisresult.object);
+		parsesmburl(fullpath, &thisresult->host, &thisresult->share, &thisresult->object);
 
 		//Set the type so we have it
-		thisresult.type = dirent->smbc_type;
+		type = dirent->smbc_type;
 
 		//Get the "dos_attr.mode" extended attribute which is the file permissions.
 		smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
 		if(errno == 13) {
-			thisresult.acl = -1;
+			thisresult->acl = -1;
 		} else {
 			//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
 			//do binary comparison on the settings eventually.
-			thisresult.acl = strtol(acl, NULL, 16);
+			thisresult->acl = strtol(acl, NULL, 16);
 		}
 
-		smbresultlist_push(&thisstatus.results, thisresult);
+		smbresultlist_push(&thisstatus->results, thisresult);
 
 		//If we have a directory or share we want to recurse to our max depth
 		if(depth < maxdepth) {
@@ -86,7 +105,7 @@ static browseresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 				case SMBC_FILE_SHARE:
 				case SMBC_DIR:
 					subresults = browse(ctx, fullpath, maxdepth, depth++);
-					smbresultlist_merge(&thisstatus.results, &subresults.results);
+					smbresultlist_merge(&thisstatus->results, &subresults.results);
 			}
 		}
 	}
@@ -94,69 +113,73 @@ static browseresult browse(SMBCCTX *ctx, char * path, int maxdepth, int depth) {
 
 	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
 	if(smbc_getFunctionClosedir(ctx)(ctx, fd) > 0) {
-		thisstatus.code = errno;
-		thisstatus.message = strerror(errno);
-		thisstatus.results = NULL;
+		thisstatus->code = errno;
+		thisstatus->message = strerror(errno);
+		thisstatus->results = NULL;
 
 	//If successful, then we'll need to determine if we had any failures on some of the sub objects.
 	} else {
-		thisstatus.code = 0;
-		thisstatus.message = "We successfully got some results";
+		thisstatus->code = 0;
+		thisstatus->message = "We successfully got some results";
 	}
 
 	//Finally, we're done, lets return to the user. 
-	return thisstatus;
+	return *thisstatus;
 }
 
-void parsesmburl(char * url, char * host, char * share, char * object) {
-	char         buf[2048];
-	char *       token;
-	char *       last;
-	const char   sep[2] = "/";
+void smbresult_tocsv(smbresult data, char *buf) {
+	//parsehidden returns 0 or 1, so we need a quick if statement
+	char hidden = ' ';
+	if(parsehidden(data.acl))
+		hidden = 'X';
 
-	strcpy(host, "");
-	strcpy(share, "");
-	strcpy(object, "");
+	//Otherwise, just a simple sprintf to the buffer the user gave us.
+	sprintf(buf, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
+		data.host, 
+		data.share, 
+		data.object, 
+		parsetype(data.type),
+		parseaccess(data.acl),
+		hidden
+	);
+}
 
-	//Remove the smb:// from the front of our string, if we can't fail.
-	if(strncmp("smb://", url, 6) == 0) {
+void parsesmburl(char *url, char **host, char **share, char **object) {
+	char       buf[2048];
+	char       *token;
+	char       *last;
+	const char sep[2] = "/";
+
+	if(strncmp("smb://", url, 6) == 0) 
 		strncpy(buf, url+6, strlen(url) - 5);
-	} else {
+	else
 		strncpy(buf, url, strlen(url));
-	}
 
-	//Tokenize the URL by /, get the first one, should be our host. 
+	//Tokenize the URL by /, get the first one, it should be our host.
 	token = strtok(buf, sep);
-	if(token == NULL) {
+	if(token == NULL)
 		return;
-	}
+	*host = strdup(token);
 
-	//Set it to the host pointer.
-	strncpy(host, token, strlen(token));
-	host[strlen(token) + 1] = '\0';
-
-	//Get the second token, it should be our share. 
+	//Get the second one, it should be our share
 	token = strtok(NULL, sep);
-	if(token == NULL)  {
+	if(token == NULL)
 		return;
-	}
+	*share = strdup(token);
 
-	//Set it to the share pointer. 
-	strncpy(share, token, strlen(token)+1);
-	share[strlen(token) + 1] = '\0';
-
-	//Now loop through the rest of the tokens and make the 
-	//file path.  Setting it to the directory pointerj
-	while (token != NULL) {
+	//Finally, we take the rest of the string and its our object path
+	/*while(token != NULL) {
 		token = strtok(NULL, sep);
 		if(token != NULL)
 			sprintf(object, "%s/%s", object, token);
-	}
+	}	*/
 }
 
-char * parsetype(uint type) {
+char* parsetype(int type) {
 		//We need to translate the type to something readable for our output
 		switch(type) {
+			case -1:
+				return "ERROR";
 			case SMBC_WORKGROUP:
 				return "WORKGROUP";
 			case SMBC_SERVER:
@@ -180,7 +203,7 @@ char * parsetype(uint type) {
 		}
 }
 
-char * parseacccess(long acl) {
+char* parseaccess(long acl) {
 	//Next check the binary to see if we've only got read only permissions. 
 	if (acl & SMBC_DOS_MODE_READONLY)
 		return "READ";
@@ -198,18 +221,18 @@ uint parsehidden(long acl) {
 }
 
 static void auth_fn(
-	const char *    pServer,
-	const char *    pShare,
-	char *          pWorkgroup,
+	const char      *pServer,
+	const char      *pShare,
+	char            *pWorkgroup,
 	int             maxLenWorkgroup,
-	char *          pUsername,
+	char            *pUsername,
 	int             maxLenUsername,
-	char *          pPassword,
+	char            *pPassword,
 	int             maxLenPassword) {
 
 	//Get our external globals that we got from the command line
-	extern char *   gUsername;
-	extern char *   gPassword;
+	extern char     *gUsername;
+	extern char     *gPassword;
 
 	//We're always going to operate on a blank workgroup of WORKGROUP
 	char			workgroup[256] = { '\0' };
@@ -227,7 +250,7 @@ static void auth_fn(
 }
 
 static SMBCCTX* create_context(void) {
-	SMBCCTX *		ctx;
+	SMBCCTX  		*ctx;
 	extern int 		gTimeout;
 	extern int 		gPassIsHash;
 
@@ -263,16 +286,16 @@ static SMBCCTX* create_context(void) {
 	return ctx;
 }
 
-static void delete_context(SMBCCTX* ctx) {
+static void delete_context(SMBCCTX *ctx) {
 	//Trying to fix the error:  no talloc stackframe at ../source3/libsmb/cliconnect.c:2637, leaking memory
-	TALLOC_CTX *frame = talloc_stackframe();
+	//TALLOC_CTX *frame = talloc_stackframe();
 
 	//First we need to purge the cache of servers the context has.
 	//This should also free all the used memory allocations.
 	smbc_getFunctionPurgeCachedServers(ctx)(ctx);
 
 	//We're done with the frame, free it up now.
-	TALLOC_FREE(frame);
+	//TALLOC_FREE(frame);
 
 	//Next we need to free the context itself, and free all the 
 	//memory it used.
