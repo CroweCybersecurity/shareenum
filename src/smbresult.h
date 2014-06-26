@@ -4,11 +4,12 @@
 
 /* Data type that includes the result for every object that is identified 
  * within our recursive scanning.
- * host   - The hostname or IP of our target
- * share  - The name of the share
- * object - The full path in the share to the object
- * type   - The type of object (printer, file share, etc.)
- * acl    - string containing the permissions
+ * host       - The hostname or IP of our target
+ * share      - The name of the share
+ * object     - The full path in the share to the object
+ * type       - The type of object (printer, file share, etc.)
+ * acl        - string containing the permissions
+ * statuscode - The result of pulling object data, 0 for success and >0 for error codes.
  */
 typedef struct smbresult {
 	char* host;
@@ -16,6 +17,7 @@ typedef struct smbresult {
 	char* object;
 	int   type;
 	long  acl;
+	int   statuscode;
 } smbresult;
 
 /* Create an empty smbresult with all of the strings pointing to empty strings ("")
@@ -27,14 +29,15 @@ smbresult* createSMBResultEmpty();
 
 /* Create a smbresult with all of the methods and variables set.
  * PARAMETERS: 
- *   host   - Hostname
- *   share  - Share name
- *   object - Full path to the object
- *   type   - Type of object
- *   acl    - ACL for the object
+ *   host       - Hostname
+ *   share      - Share name
+ *   object     - Full path to the object
+ *   type       - Type of object
+ *   acl        - ACL for the object
+ *   statuscode - The return code for the object, 0 for success and >0 as error codes
  * RETURN (smbresult): A pointer to the smbresult
  */
-smbresult* createSMBResult(char* host, char* share, char* object, int type, long acl);
+smbresult* createSMBResult(char* host, char* share, char* object, int type, long acl, int statuscode);
 
 /* So we're typically going to have a large number of results, we'll
  * keep a linked list of our results so we can have a dynamic number.

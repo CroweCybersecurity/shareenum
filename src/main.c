@@ -18,9 +18,14 @@ int main(int argc, char * argv[]) {
 	const char *    l; //For length of the hash, if we got one
 	char            hash[33]; //To store our hash if the user gave us.
 
-	//Print a header so we know some stuff
+	//Print a header so we know the versions
 	fprintf(stdout, "%s", banner);
 	fprintf(stdout, ANSI_COLOR_BOLDWHITE"%*s %d.%d build %d\n"ANSI_COLOR_RESET, 57-numdigits(BUILD_NUMBER),"Version", MAJOR_REVISION, MINOR_REVISION, BUILD_NUMBER);
+
+
+/*************************************************************************************
+ * COMMAND LINE ARGUMENTS
+ ************************************************************************************/
 
 	/* Get all of our command line options with GetOpt
 	 * Basically, here we use getopt to loop through the arguments
@@ -95,6 +100,10 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
+/*************************************************************************************
+ * CHECK AND SETUP
+ ************************************************************************************/
+
 	//Get the target (IP or file) from the last item in argv.  Optind
 	//is from getopt telling us where it stopped. 
 	target = argv[optind];
@@ -122,99 +131,90 @@ int main(int argc, char * argv[]) {
 		fprintf(stdout, ANSI_COLOR_BOLDGREEN "Password: " ANSI_COLOR_RESET "%s\n", gPassword);
 	fprintf(stdout, "\n");
 
-	//Wait three seconds because McAtee
-	sleep(3);
-
 	//If debugging is on, print out the other variables we got on the cmd line.
 #ifdef DEBUG
 		fprintf(stdout, "Target: %s\n", argv[optind]);
 		fprintf(stdout, "Start Point: %d\n", startline);
 #endif
 
+	//Wait three seconds because McAtee
+	sleep(3);
+
 	//Try and turn off buffering on stdout. 
 	setbuf(stdout, NULL);
 
-	//If the target we got is a file.
-	if(file_exists(target)) {
-		//Open the file
-		FILE * 			infile = fopen ( target, "r" );
-		//Set a counter for where we're at in the file
-		int 			current = 0;
-		//Count the total number of lines in the file
-		int 			total = file_countlines(infile);
-		//And the number of digits in that total for pretty output
-		int				totallen = numdigits(total);
-		//Create a struct for our results for each line
-		browseresult	res;
-		//And a buffer to read the file into!
-		char 			buf[1024];
+/*************************************************************************************
+ * RUNNING OF SHARES
+ ************************************************************************************/
 
-		//If our input file loaded properly...
-		if ( infile != NULL ) {
-
-			//If we're starting at 0, print the headers.  Otherwise assume
-			//we're restarting from an error or user shutdown/Ctrl-C.
-			if(startline == 0)
-				fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
-
-			//Read our file one line at a time into the buffer
-			while ( fgets ( buf, sizeof(buf), infile ) != NULL ) {
-				//We did it!  Increment where we're at
-				current++;
-
-				//Go ahead and skip until we get the line we want if set.
-				if(current < startline) continue; 
-
-				//Check to make sure that our file doesn't have any newlines
-				//or carriage returns left. 
-				if (buf[strlen(buf) - 1] == '\n') {
-					buf[strlen(buf) - 1] = '\0';
-				}
-				if (buf[strlen(buf) - 1] == '\r') {
-					buf[strlen(buf) - 1] = '\0';
-				}
-
-				fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, current, total, buf);
-
-				//Run the target that we pulled from the file and get the results. 
-				res = runtarget(buf, recursion);
-
-				//We'll delay as long as our user asked. 
-				sleep(linedelay);
-			}
-		} else {
-			//If the file didn't load, print the error. 
-			perror ( target );
-		}
-
-		//Close our file handle, because we're good C programmers that don't 
-		//like memory leaks. 
-		fclose(outfile);
-
-	//Otherwise we'll assume our target is an IP or hostname
-	} else {
-		//struct to hold our results!
-		browseresult 		res;
-
-		//Print the header
+	if(startline == 0)                                   //If we're starting at 0, print the headers.  
 		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
-		//Run the target and get results
-		res = runtarget(target, recursion);
+	browseresult        res;      //Struct to hold the results info
+	smbresult           tmp;      //Item to hold the temp results as we loop through objects
+	char                *outbuf;
 
-		smbresult tmp;
-		char *buf;
-		while(smbresultlist_pop(&res.results, &tmp)) {
-			smbresult_tocsv(tmp, buf);
-			fprintf(outfile, "\"%s\",%s\n", gUsername, buf);
+	//If the target we got is a file.
+	if(file_exists(target)) {
+		FILE            *infile = fopen ( target, "r" );  //Open the file
+		int             current = 0;                     //Set a counter for where we're at in the file
+		int             total = file_countlines(infile); //Count the total number of lines in the file
+		int             totallen = numdigits(total);     //And the number of digits in that total for pretty output
+		char            infile_buf[1024];                //And a buffer to read the file into!
+
+		if ( infile != NULL ) {                          //If our input file loaded properly...
+			while ( fgets ( infile_buf, sizeof(infile_buf), infile ) != NULL ) {       //Read our file one line at a time into the buffer
+				current++;                               //We did it!  Increment where we're at
+
+				if(current < startline) continue;        //Go ahead and skip until we get the line we want if set.
+
+				if (infile_buf[strlen(infile_buf) - 1] == '\n') {      //Check to make sure that our file doesn't have any newlines or returns
+					infile_buf[strlen(infile_buf) - 1] = '\0';
+				}
+				if (infile_buf[strlen(infile_buf) - 1] == '\r') {
+					infile_buf[strlen(infile_buf) - 1] = '\0';
+				}
+
+				fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, current, total, infile_buf);
+
+				res = runtarget(infile_buf, recursion);                     //Run the target and get results
+
+				while(smbresultlist_pop(&res.results, &tmp)) {          //Loop through the llist of results and put them in tmpp
+					smbresult_tocsv(tmp, outbuf);                       //Convert tmp to a CSV
+					fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf); //Print it to our file
+				}
+
+				if(res.code > 0) {                                      //Print some output so the user knows something happend
+					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", res.message, res.code);
+				} else {
+					fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] %s\n", res.message);
+				}
+			}
+		} else {
+			perror ( target );                                          //If the file didn't load, print the error. 
 		}
 
-		if(res.code > 0) {
+		fclose(outfile);                                                //Close our file handle, because we're good programmers
+
+	//Otherwise we'll assume our target is an IP or hostname and won't do anything fancy
+	} else {
+		fprintf(stdout, ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, target);
+
+		res = runtarget(target, recursion);                             //Run the target and get results
+
+		while(smbresultlist_pop(&res.results, &tmp)) {                  //Loop through the llist of results and put them in tmpp
+			smbresult_tocsv(tmp, outbuf);                               //Convert tmp to a CSV
+			fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);         //Print it to our file
+		}
+
+		if(res.code > 0) {                                              //Print some output so the user knows something happend
 			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", res.message, res.code);
 		} else {
 			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] %s\n", res.message);
 		}
 	}
+
+	sleep(linedelay);                                                   //We'll delay as long as our user asked. 
 }
 
 //If you don't get this, try again harder

@@ -43,13 +43,13 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 	struct smbc_dirent      *dirent;
 
 	char                    fullpath[2560] = "";
+
 	char                    acl[1024] = "";
+	int                     aclret;
 
 	browseresult			*thisstatus = createBrowseResultEmpty();
 	browseresult            subresults;
 
-	int                     type;
-	long                    aclvalue;
 
 	//Try and get a directory listing of the object we just opened.
 	//This could be a workgroup, server, share, or directory and
@@ -85,11 +85,12 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 		parsesmburl(fullpath, &thisresult->host, &thisresult->share, &thisresult->object);
 
 		//Set the type so we have it
-		type = dirent->smbc_type;
+		thisresult->type = dirent->smbc_type;
 
 		//Get the "dos_attr.mode" extended attribute which is the file permissions.
-		smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
-		if(errno == 13) {
+		aclret = smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
+
+		if(aclret == -1 && errno == 13) {
 			thisresult->acl = -1;
 		} else {
 			//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
@@ -101,7 +102,7 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 
 		//If we have a directory or share we want to recurse to our max depth
 		if(depth < maxdepth) {
-			switch (dirent->smbc_type) {
+			switch (thisresult->type) {
 				case SMBC_FILE_SHARE:
 				case SMBC_DIR:
 					subresults = browse(ctx, fullpath, maxdepth, depth++);
