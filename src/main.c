@@ -150,7 +150,7 @@ int main(int argc, char * argv[]) {
 	if(startline == 0)                                   //If we're starting at 0, print the headers.  
 		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
-	browseresult        res;      //Struct to hold the results info
+	smbresultlist       *res;      //Struct to hold the results info
 	smbresult           tmp;      //Item to hold the temp results as we loop through objects
 	char                *outbuf;
 
@@ -179,15 +179,14 @@ int main(int argc, char * argv[]) {
 
 				res = runtarget(infile_buf, recursion);                     //Run the target and get results
 
-				while(smbresultlist_pop(&res.results, &tmp)) {          //Loop through the llist of results and put them in tmpp
-					smbresult_tocsv(tmp, outbuf);                       //Convert tmp to a CSV
-					fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf); //Print it to our file
-				}
-
-				if(res.code > 0) {                                      //Print some output so the user knows something happend
-					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", res.message, res.code);
+				if(smbresultlist_length(res) > 1) {
+					while(smbresultlist_pop(&res, &tmp)) {          //Loop through the llist of results and put them in tmpp
+						smbresult_tocsv(tmp, outbuf);                       //Convert tmp to a CSV
+						fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf); //Print it to our file
+					}
+					fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", smbresultlist_length(res));
 				} else {
-					fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] %s\n", res.message);
+					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data.statuscode), res->data.statuscode);
 				}
 			}
 		} else {
@@ -202,15 +201,14 @@ int main(int argc, char * argv[]) {
 
 		res = runtarget(target, recursion);                             //Run the target and get results
 
-		while(smbresultlist_pop(&res.results, &tmp)) {                  //Loop through the llist of results and put them in tmpp
-			smbresult_tocsv(tmp, outbuf);                               //Convert tmp to a CSV
-			fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);         //Print it to our file
-		}
-
-		if(res.code > 0) {                                              //Print some output so the user knows something happend
-			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", res.message, res.code);
+		if(smbresultlist_length(res) > 1) {
+			while(smbresultlist_pop(&res, &tmp)) {                  //Loop through the llist of results and put them in tmpp
+				smbresult_tocsv(tmp, outbuf);                               //Convert tmp to a CSV
+				fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);         //Print it to our file
+			}
+			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", smbresultlist_length(res));
 		} else {
-			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] %s\n", res.message);
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data.statuscode), res->data.statuscode);
 		}
 	}
 

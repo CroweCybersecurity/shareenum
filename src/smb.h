@@ -8,35 +8,6 @@
 #include <util/talloc_stack.h> //Samba TALLOC stack
 #include "smbresult.h"
 
-/* Data type for the results of each taget that is provided to us
- * that we are going to load, we may parse each recursively but this is the 
- * generic results for each target.
- * code     - An integer for the result of the loading. 
- *      -1 = The directory loaded successfully
- *      0  = A non-critical error occured, see message
- *      >0 = A critical error occured and data was not gathered.
- *           See message. 
- *
- * message  - Description of the result, including success or error. 
- * results  - A linked list of results objects 
- */
-typedef struct browseresult {
-	int            code;
-	char           *message;
-	smbresultlist  *results;
-} browseresult;
-
-/* The following two functions are a set of instantiators for browseresults
- * so that we know we've got them setup nicely.  
- * PARAMETERS: 
- *   code    - The return code, see above struct definition for values
- *   message - Description of our results
- *   results - Linked list of results
- * RETURN (browseresult): A pointer to the newly created browseresult
- */
-browseresult* createBrowseResultEmpty();
-browseresult* createBrowseResult(int code, char *message, smbresultlist *results);
-
 /* Run a check against a host.  This creates a Samba context, browses to the path
  * creates a result object, and then clears the context after its finished.  
  *
@@ -46,7 +17,7 @@ browseresult* createBrowseResult(int code, char *message, smbresultlist *results
  *
  * RETURN (smb_result): The result of our run of this host.
  */
-browseresult runtarget(char *target, int maxdepth);
+smbresultlist* runtarget(char *target, int maxdepth);
 
 /* Takes a smbresult object and converts it to a string formatted in CSV
  * formatting including field terminators in the format: 
@@ -71,7 +42,7 @@ void smbresult_tocsv(smbresult data, char *buf);
  * RETURN (smb_result): The result of our run on this host.  Will be aggregated if
  *                recursion is in use.
  */
-static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth);
+static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth);
 
 /* Parse out a smb uri string into its various components.  Should typically be in 
  * the format of: smb://TARGET/SHARE/DIRECTORY/FILE

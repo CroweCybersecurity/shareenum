@@ -1,25 +1,16 @@
 #include "smb.h"
 
-browseresult* createBrowseResultEmpty() {
-	return createBrowseResult(0, "", NULL);
-}
-
-browseresult* createBrowseResult(int code, char *message, smbresultlist *results) {
-	browseresult *tmp = malloc(sizeof(browseresult));
-	tmp->code = code;
-	tmp->message = message;
-	tmp->results = results;
-}
-
-browseresult runtarget(char *target, int maxdepth) {
+smbresultlist* runtarget(char *target, int maxdepth) {
 	SMBCCTX         *context;
 	char            buf[256];
-	browseresult    res;
+	smbresultlist   *res = NULL;
 
 	//Try to create a context, if it's null that means we failed, so let the user know.
 	if((context = create_context()) == NULL) {
-		res.code = 1;
-		res.message = "Unable to create samba context.\n";
+		smbresult *tmp = createSMBResultEmpty();
+		parsesmburl(target, &tmp->host, &tmp->share, &tmp->object);
+		tmp->statuscode = errno;
+		smbresultlist_push(&res, tmp);
 		return res;
 	}
 
@@ -38,7 +29,7 @@ browseresult runtarget(char *target, int maxdepth) {
 	return res;
 }
 
-static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) { 
+static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) { 
 	SMBCFILE                *fd;
 	struct smbc_dirent      *dirent;
 
@@ -47,8 +38,8 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 	char                    acl[1024] = "";
 	int                     aclret;
 
-	browseresult			*thisstatus = createBrowseResultEmpty();
-	browseresult            subresults;
+	smbresultlist           *thisresults = NULL;
+	smbresultlist           *subresults = NULL;
 
 
 	//Try and get a directory listing of the object we just opened.
@@ -58,18 +49,15 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
 		smbresult *tmp = createSMBResultEmpty();
 		parsesmburl(path, &tmp->host, &tmp->share, &tmp->object);
-		tmp->type = -1;
-
-		thisstatus->code = errno;
-		thisstatus->message = strerror(errno);
-		smbresultlist_push(&thisstatus->results, tmp);
-
-		return *thisstatus;
+		tmp->statuscode = errno;
+		smbresultlist_push(&thisresults, tmp);
+		return thisresults;
 	}
 
 	//Get the current entity of the directory item we're working on.
 	while ((dirent = smbc_getFunctionReaddir(ctx)(ctx, fd)) != NULL) {
 		smbresult *thisresult = createSMBResultEmpty();
+
 
 		//Check to see if what we're working on is blank, or one of the 
 		//special directory characters. If so, skip them.
@@ -98,7 +86,7 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 			thisresult->acl = strtol(acl, NULL, 16);
 		}
 
-		smbresultlist_push(&thisstatus->results, thisresult);
+		smbresultlist_push(&thisresults, thisresult);
 
 		//If we have a directory or share we want to recurse to our max depth
 		if(depth < maxdepth) {
@@ -106,7 +94,7 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 				case SMBC_FILE_SHARE:
 				case SMBC_DIR:
 					subresults = browse(ctx, fullpath, maxdepth, depth++);
-					smbresultlist_merge(&thisstatus->results, &subresults.results);
+					smbresultlist_merge(&thisresults, &subresults);
 			}
 		}
 	}
@@ -114,18 +102,14 @@ static browseresult browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) {
 
 	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
 	if(smbc_getFunctionClosedir(ctx)(ctx, fd) > 0) {
-		thisstatus->code = errno;
-		thisstatus->message = strerror(errno);
-		thisstatus->results = NULL;
-
-	//If successful, then we'll need to determine if we had any failures on some of the sub objects.
-	} else {
-		thisstatus->code = 0;
-		thisstatus->message = "We successfully got some results";
+		smbresult *tmp = createSMBResultEmpty();
+		parsesmburl(path, &tmp->host, &tmp->share, &tmp->object);
+		tmp->statuscode = errno;
+		smbresultlist_push(&thisresults, tmp);
 	}
 
 	//Finally, we're done, lets return to the user. 
-	return *thisstatus;
+	return thisresults;
 }
 
 void smbresult_tocsv(smbresult data, char *buf) {
