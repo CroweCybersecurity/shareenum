@@ -150,8 +150,9 @@ int main(int argc, char * argv[]) {
 	if(startline == 0)                                   //If we're starting at 0, print the headers.  
 		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
-	smbresultlist       *res;      //Struct to hold the results info
-	smbresult           *tmp;      //Item to hold the temp results as we loop through objects
+	smbresultlist       *head = NULL;      //Struct to hold the results info
+	uint                headlen = 0;       //Hold the length of our linked list at output time.
+	smbresult           *tmp;              //Item to hold the temp results as we loop through objects
 	char                *outbuf;
 
 	//If the target we got is a file.
@@ -177,16 +178,17 @@ int main(int argc, char * argv[]) {
 
 				fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, current, total, infile_buf);
 
-				res = runtarget(infile_buf, recursion);                     //Run the target and get results
+				head = runtarget(infile_buf, recursion);                     //Run the target and get results
+				headlen = smbresultlist_length(head);
 
-				if(smbresultlist_length(res) > 1) {
-					while(smbresultlist_pop(&res, &tmp)) {               //Loop through the llist of results and put them in tmpp
-						smbresult_tocsv(*tmp, outbuf);                      //Convert tmp to a CSV
+				if(headlen > 1) {
+					while(smbresultlist_pop(&head, &tmp)) {               //Loop through the llist of results and put them in tmpp
+						smbresult_tocsv(*tmp, &outbuf);                      //Convert tmp to a CSV
 						fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf); //Print it to our file
 					}
-					fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", smbresultlist_length(res));
+					fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", headlen);
 				} else {
-					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data->statuscode), res->data->statuscode);
+					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(head->data->statuscode), head->data->statuscode);
 				}
 			}
 		} else {
@@ -199,16 +201,17 @@ int main(int argc, char * argv[]) {
 	} else {
 		fprintf(stdout, ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, target);
 
-		res = runtarget(target, recursion);                             //Run the target and get results
+		head = runtarget(target, recursion);                             //Run the target and get results
+		headlen = smbresultlist_length(head);
 
-		if(smbresultlist_length(res) > 1) {
-			while(smbresultlist_pop(&res, &tmp)) {                  //Loop through the llist of results and put them in tmpp
-				smbresult_tocsv(*tmp, outbuf);                               //Convert tmp to a CSV
+		if(smbresultlist_length(head) > 1) {
+			while(smbresultlist_pop(&head, &tmp)) {                  //Loop through the llist of results and put them in tmpp
+				smbresult_tocsv(*tmp, &outbuf);                               //Convert tmp to a CSV
 				fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);         //Print it to our file
 			}
-			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", smbresultlist_length(res));
+			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", headlen);
 		} else {
-			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data->statuscode), res->data->statuscode);
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(head->data->statuscode), head->data->statuscode);
 		}
 	}
 

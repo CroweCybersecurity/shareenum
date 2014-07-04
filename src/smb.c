@@ -111,16 +111,14 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	return thisresults;
 }
 
-void smbresult_tocsv(smbresult data, char *buf) {
+void smbresult_tocsv(smbresult data, char **buf) {
 	//parsehidden returns 0 or 1, so we need a quick if statement
 	char hidden = ' ';
 	if(parsehidden(data.acl))
 		hidden = 'X';
 
-	char *buffer;
-
-	//Otherwise, just a simple sprintf to the buffer the user gave us.
-	sprintf(buffer, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
+	//We need to determine the length of our new string
+	size_t size = snprintf(NULL, 0, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
 		data.host, 
 		data.share, 
 		data.object, 
@@ -128,6 +126,21 @@ void smbresult_tocsv(smbresult data, char *buf) {
 		parseaccess(data.acl),
 		hidden
 	);
+
+	//Otherwise, just a simple sprintf to the buffer the user gave us.
+	char *buffer = malloc(size);
+	snprintf(buffer, size, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
+		data.host, 
+		data.share, 
+		data.object, 
+		parsetype(data.type),
+		parseaccess(data.acl),
+		hidden
+	);
+
+	*buf = strdup(buffer);
+
+	free(buffer);
 }
 
 void parsesmburl(char *url, char **host, char **share, char **object) {
@@ -274,14 +287,14 @@ static SMBCCTX* create_context(void) {
 
 static void delete_context(SMBCCTX *ctx) {
 	//Trying to fix the error:  no talloc stackframe at ../source3/libsmb/cliconnect.c:2637, leaking memory
-	//TALLOC_CTX *frame = talloc_stackframe();
+	TALLOC_CTX *frame = talloc_stackframe();
 
 	//First we need to purge the cache of servers the context has.
 	//This should also free all the used memory allocations.
 	smbc_getFunctionPurgeCachedServers(ctx)(ctx);
 
 	//We're done with the frame, free it up now.
-	//TALLOC_FREE(frame);
+	TALLOC_FREE(frame);
 
 	//Next we need to free the context itself, and free all the 
 	//memory it used.
