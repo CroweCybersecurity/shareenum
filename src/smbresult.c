@@ -19,12 +19,12 @@ void smbresultlist_push(smbresultlist **head, smbresult *data) {
 	//Here we declare our new node for our list
 	smbresultlist *newnode = malloc(sizeof(smbresultlist)); 
 
-	newnode->data = *data;      //We take the new data and store it
+	newnode->data = data;      //We take the new data and store it
 	newnode->next = *head;     //Then we set the next node to our last one
 	*head = newnode;           //And set our current node to the new one	
 }
 
-int smbresultlist_pop(smbresultlist **head, smbresult *data) {
+int smbresultlist_pop(smbresultlist **head, smbresult **data) {
 	smbresultlist *tmp;        //Tmp variable to hold our list head
 	tmp = *head;               //Set the head to the tmp
 
@@ -44,7 +44,7 @@ uint smbresultlist_merge(smbresultlist **dst, smbresultlist **src) {
 	smbresult *tmp;             //Tmp variable to hold the current data
 
 	//Pop the current one of src and push it onto dst
-	while(smbresultlist_pop(src, tmp) > 0) {
+	while(smbresultlist_pop(src, &tmp) > 0) {
 		smbresultlist_push(dst, tmp);
 	}
 }
