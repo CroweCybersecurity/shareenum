@@ -27,7 +27,7 @@ smbresultlist* runtarget(char *target, int maxdepth);
  *   buf  - Pointer to the string buffer where we should put the output.
  * RETURN (void): None
  */
-void smbresult_tocsv(smbresult data, char *buf);
+void smbresult_tocsv(smbresult data, char **buf);
 
 /* This is the function that browses a system and attempts to list all of the shares.
  *

@@ -25,7 +25,7 @@ void smbresultlist_push(smbresultlist **head, smbresult *data) {
 }
 
 int smbresultlist_pop(smbresultlist **head, smbresult **data) {
-	smbresultlist *tmp;        //Tmp variable to hold our list head
+	smbresultlist *tmp = NULL;        //Tmp variable to hold our list head
 	tmp = *head;               //Set the head to the tmp
 
 	if(tmp == NULL) {          //If tmp is null, we've reached the end.
