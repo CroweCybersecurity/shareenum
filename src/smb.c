@@ -58,7 +58,6 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	while ((dirent = smbc_getFunctionReaddir(ctx)(ctx, fd)) != NULL) {
 		smbresult *thisresult = createSMBResultEmpty();
 
-
 		//Check to see if what we're working on is blank, or one of the 
 		//special directory characters. If so, skip them.
 		if(strcmp(dirent->name, "") == 0) continue;
@@ -118,8 +117,10 @@ void smbresult_tocsv(smbresult data, char *buf) {
 	if(parsehidden(data.acl))
 		hidden = 'X';
 
+	char *buffer;
+
 	//Otherwise, just a simple sprintf to the buffer the user gave us.
-	sprintf(buf, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
+	sprintf(buffer, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
 		data.host, 
 		data.share, 
 		data.object, 

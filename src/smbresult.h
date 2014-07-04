@@ -47,7 +47,7 @@ smbresult* createSMBResult(char* host, char* share, char* object, int type, long
  * next - A link to the next item in the linked list
  */
 typedef struct smbresultlist {
-	smbresult      data;
+	smbresult*            data;
 	struct smbresultlist* next;
 } smbresultlist;
 
@@ -70,7 +70,7 @@ void smbresultlist_push(smbresultlist** head, smbresult *data);
  *           will be freed and won't be on the list.
  * RETURN (int): 0 if we failed and 1 if we succeeded.
  */
-int smbresultlist_pop(smbresultlist** head, smbresult *data);
+int smbresultlist_pop(smbresultlist** head, smbresult **data);
 
 /* Takes two lists of smbresults and merges them together in no 
  * particular order. 

@@ -151,7 +151,7 @@ int main(int argc, char * argv[]) {
 		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
 
 	smbresultlist       *res;      //Struct to hold the results info
-	smbresult           tmp;      //Item to hold the temp results as we loop through objects
+	smbresult           *tmp;      //Item to hold the temp results as we loop through objects
 	char                *outbuf;
 
 	//If the target we got is a file.
@@ -180,13 +180,13 @@ int main(int argc, char * argv[]) {
 				res = runtarget(infile_buf, recursion);                     //Run the target and get results
 
 				if(smbresultlist_length(res) > 1) {
-					while(smbresultlist_pop(&res, &tmp)) {          //Loop through the llist of results and put them in tmpp
-						smbresult_tocsv(tmp, outbuf);                       //Convert tmp to a CSV
+					while(smbresultlist_pop(&res, &tmp)) {               //Loop through the llist of results and put them in tmpp
+						smbresult_tocsv(*tmp, outbuf);                      //Convert tmp to a CSV
 						fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf); //Print it to our file
 					}
 					fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", smbresultlist_length(res));
 				} else {
-					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data.statuscode), res->data.statuscode);
+					fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data->statuscode), res->data->statuscode);
 				}
 			}
 		} else {
@@ -203,12 +203,12 @@ int main(int argc, char * argv[]) {
 
 		if(smbresultlist_length(res) > 1) {
 			while(smbresultlist_pop(&res, &tmp)) {                  //Loop through the llist of results and put them in tmpp
-				smbresult_tocsv(tmp, outbuf);                               //Convert tmp to a CSV
+				smbresult_tocsv(*tmp, outbuf);                               //Convert tmp to a CSV
 				fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);         //Print it to our file
 			}
 			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", smbresultlist_length(res));
 		} else {
-			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data.statuscode), res->data.statuscode);
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(res->data->statuscode), res->data->statuscode);
 		}
 	}
 
