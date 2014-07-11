@@ -117,3 +117,59 @@ static SMBCCTX* create_context(void);
  */
 static void delete_context(SMBCCTX *ctx);
 
+/* Generic access rights 
+ *
+ * These are required by all object types and are mapped to a set
+ * of general or generic standard/object specific access rights
+ * which are shown in the in-line comments
+ *
+ * Bytes 28-31 - Generic Items
+ * Bytes 25-27 - Unused / Reserved
+ * Byte  24    - SACL 
+ */
+#define GENERIC_READ               0x80000000 //FILE_READ_ATTRIBUTES && FILE_READ_DATA && FILE_READ_EA && STANDARD_RIGHTS_READ && SYNCHRONIZE
+#define GENERIC_WRITE              0x40000000 //FILE_APPEND_DATA && FILE_WRITE_ATTRIBUTES && FILE_WRITE_DATA && FILE_WRITE_EA && STANDARD_RIGHTS_WRITE && SYNCHRONIZE 
+#define GENERIC_EXECUTE            0x20000000 //FILE_EXECUTE && FILE_READ_ATTRIBUTES && STANDARD_RIGHTS_EXECUTE && SYNCHRONIZE 
+#define GENERIC_ALL                0x10000000 //GENERIC_READ && GENERIC_WRITE && GENERIC_EXECUTE
+#define ACCESS_SYSTEM_SECURITY     0x01000000 //Allows access to get or set the SACL for the object
+
+/* Standard access rights 
+ *
+ * These are the standard rights that all objects will have at a 
+ * minimum and map to very high level access, such as modifying 
+ * the access or deleting the object
+ * 
+ * Bytes 16-20 - Used
+ * Bytes 21-23 - Appear unused at this point
+ */
+#define STANDARD_SYNCHRONIZE       0x00100000 //Allow the program to wait until our object is in a signaled state
+#define STANDARD_WRITE_OWNER       0x00080000 //The right to change the owner
+#define STANDARD_WRITE_DAC         0x00040000 //The right to change the DACL of the object
+#define STANDARD_READ_CONTROL      0x00020000 //The right to read the security descriptor
+#define STANDARD_DELETE            0x00010000 //The right to delete the object
+
+/* Object specific access rights
+ *
+ * These are for the specific access rights (in our case) for
+ * files and directories which are what we care about.  The 
+ * bits are the same for files and directories, so bit 1
+ * is READ for files and LIST for directories but is the same
+ * bit because the access is the same.  
+ *
+ * Bytes 0-8  - Used
+ * Bytes 9-16 - Appear unused at this point
+ */
+#define FILE_WRITE_ATTRIBUTES      0x00000100 //BOTH - Write attributes to the file (archive, read only, etc.)
+#define FILE_READ_ATTRIBUTES       0x00000080 //BOTH - Read the attributes set ont he file
+#define FILE_DELETE_CHILD          0x00000040 //BOTH - Allows the delete of an entire directory tree, including files inside even if they're read only
+#define FILE_EXECUTE               0x00000020 //FILE - Run and/or execute the file
+#define FILE_TRAVERSE              0x00000020 //DIR  - The right to move into a directory, BYPASS_TRAVERSE_CHECKING user right can bypass this
+#define FILE_WRITE_EA              0x00000010 //BOTH - Write extended attributes 
+#define FILE_READ_EA               0x00000008 //BOTH - Read extended attributes
+#define FILE_APPEND_DATA           0x00000004 //FILE - Allow appending to the file (will not overwrite data)
+#define FILE_ADD_SUBDIRECTORY      0x00000004 //DIR  - Allow creating subdirectories
+#define FILE_WRITE_DATA            0x00000002 //FILE - Allow writing data into a file
+#define FILE_ADD_FILE              0x00000002 //DIR  - Allow adding a file to a directory
+#define FILE_READ_DATA             0x00000001 //FILE - Allow opening and reading from a file
+#define FILE_LIST_DIRECTORY        0x00000001 //DIR  - Allow reading a file list from a directory
+
