@@ -12,12 +12,13 @@
  * statuscode - The result of pulling object data, 0 for success and >0 for smb error codes, <0 for our error codes.
  */
 typedef struct smbresult {
-	char* host;
-	char* share;
-	char* object;
-	int   type;
-	long  acl;
-	int   statuscode;
+	char*        host;
+	char*        share;
+	char*        object;
+	int          type;
+	char*        acl;
+	unsigned int mode;
+	int          statuscode;
 } smbresult;
 
 /* Create an empty smbresult with all of the strings pointing to empty strings ("")
@@ -37,7 +38,7 @@ smbresult* createSMBResultEmpty();
  *   statuscode - The return code for the object, 0 for success and >0 as error codes
  * RETURN (smbresult): A pointer to the smbresult
  */
-smbresult* createSMBResult(char* host, char* share, char* object, int type, long acl, int statuscode);
+smbresult* createSMBResult(char* host, char* share, char* object, int type, char* acl, unsigned int mode, int statuscode);
 
 /* So we're typically going to have a large number of results, we'll
  * keep a linked list of our results so we can have a dynamic number.

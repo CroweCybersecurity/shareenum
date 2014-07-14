@@ -8,7 +8,7 @@ smbresultlist* runtarget(char *target, int maxdepth) {
 	//Try to create a context, if it's null that means we failed, so let the user know.
 	if((context = create_context()) == NULL) {
 		smbresult *tmp = createSMBResultEmpty();
-		parsesmburl(target, &tmp->host, &tmp->share, &tmp->object);
+		parse_smburl(target, &tmp->host, &tmp->share, &tmp->object);
 		tmp->statuscode = errno;
 		smbresultlist_push(&res, tmp);
 		return res;
@@ -38,6 +38,9 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	char                    acl[1024] = "";
 	int                     aclret;
 
+	char			mode[128] = "";
+	int			moderet;
+
 	smbresultlist           *thisresults = NULL;
 	smbresultlist           *subresults = NULL;
 
@@ -48,7 +51,7 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	//Errors will happen a lot in normal usage due to access denied.
 	if ((fd = smbc_getFunctionOpendir(ctx)(ctx, path)) == NULL) {
 		smbresult *tmp = createSMBResultEmpty();
-		parsesmburl(path, &tmp->host, &tmp->share, &tmp->object);
+		parse_smburl(path, &tmp->host, &tmp->share, &tmp->object);
 		tmp->statuscode = errno;
 		smbresultlist_push(&thisresults, tmp);
 		return thisresults;
@@ -69,20 +72,29 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 		sprintf(fullpath, "%s/%s", path, dirent->name);
 
 		//Parse out the various parts of the path for pretty output.
-		parsesmburl(fullpath, &thisresult->host, &thisresult->share, &thisresult->object);
+		parse_smburl(fullpath, &thisresult->host, &thisresult->share, &thisresult->object);
 
 		//Set the type so we have it
 		thisresult->type = dirent->smbc_type;
 
 		//Get the "dos_attr.mode" extended attribute which is the file permissions.
-		aclret = smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", acl, sizeof(acl));
-
-		if(aclret == -1 && errno == 13) {
-			thisresult->acl = -1;
+		moderet = smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.dos_attr.mode", &mode, sizeof(mode));
+		if(moderet == -1 && errno == 13) {
+			thisresult->mode = -1;
 		} else {
 			//The ACL is returned as a string pointer, but we need to convert it to a long so we can 
 			//do binary comparison on the settings eventually.
-			thisresult->acl = strtol(acl, NULL, 16);
+			thisresult->mode = strtol(acl, NULL, 16);
+		}
+
+		//Get the ACL ACEs for the NTFS permissions.  The + is so we lookup SIDs to names
+		aclret = smbc_getFunctionGetxattr(ctx)(ctx, fullpath, "system.nt_sec_desc.acl.*+", acl, sizeof(acl));
+		if(aclret < 0) {
+			char permerrbuf[100];
+			sprintf(permerrbuf, "Unable to pull permissions (%d): %s", errno, strerror(errno));
+			thisresult->acl = strdup(permerrbuf);
+		} else {
+			thisresult->acl = strdup(acl);
 		}
 
 		smbresultlist_push(&thisresults, thisresult);
@@ -102,7 +114,7 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	//Try to close the directory that we had opened.  If it failed, it'll return > 0.
 	if(smbc_getFunctionClosedir(ctx)(ctx, fd) > 0) {
 		smbresult *tmp = createSMBResultEmpty();
-		parsesmburl(path, &tmp->host, &tmp->share, &tmp->object);
+		parse_smburl(path, &tmp->host, &tmp->share, &tmp->object);
 		tmp->statuscode = errno;
 		smbresultlist_push(&thisresults, tmp);
 	}
@@ -111,30 +123,45 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	return thisresults;
 }
 
-void smbresult_tocsv(smbresult data, char **buf) {
+void smbresult_tocsv(smbresult data, char **buf, char *ace) {
 	//parsehidden returns 0 or 1, so we need a quick if statement
 	char hidden = ' ';
-	if(parsehidden(data.acl))
+	if(parse_hidden(data.mode))
 		hidden = 'X';
 
+	//We need to parse the access entry, here are the variables we'll use to hold them
+	char * principal = "";
+	unsigned int atype = 0;
+	unsigned int aflags = 0;
+	unsigned int amask = 0;
+
+	//Parse the entry, if we can't then just quit because we got bad data.
+	if(ace != NULL) {
+		if(parse_acl(ace, &principal, &atype, &aflags, &amask) == 0) {
+			return;
+		}
+	}
+
 	//We need to determine the length of our new string
-	size_t size = snprintf(NULL, 0, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
+	size_t size = snprintf(NULL, 0, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
 		data.host, 
 		data.share, 
 		data.object, 
-		parsetype(data.type),
-		parseaccess(data.acl),
+		parse_type(data.type),
+		principal,
+		parse_accessmask(amask),
 		hidden
 	);
 
 	//Otherwise, just a simple sprintf to the buffer the user gave us.
-	char *buffer = malloc(size);
-	snprintf(buffer, size, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
+	char *buffer = malloc(size+1);
+	snprintf(buffer, size+1, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%c\"", 
 		data.host, 
 		data.share, 
 		data.object, 
-		parsetype(data.type),
-		parseaccess(data.acl),
+		parse_type(data.type),
+		principal,
+		parse_accessmask(amask),
 		hidden
 	);
 
@@ -143,7 +170,7 @@ void smbresult_tocsv(smbresult data, char **buf) {
 	free(buffer);
 }
 
-void parsesmburl(char *url, char **host, char **share, char **object) {
+void parse_smburl(char *url, char **host, char **share, char **object) {
 	char       buf[2048];
 	char       *token;
 	char       *last;
@@ -167,14 +194,10 @@ void parsesmburl(char *url, char **host, char **share, char **object) {
 	*share = strdup(token);
 
 	//Finally, we take the rest of the string and its our object path
-	/*while(token != NULL) {
-		token = strtok(NULL, sep);
-		if(token != NULL)
-			sprintf(object, "%s/%s", object, token);
-	}	*/
+	*object = strdup(token + strlen(token) + 1);
 }
 
-char* parsetype(int type) {
+char* parse_type(int type) {
 		//We need to translate the type to something readable for our output
 		switch(type) {
 			case -1:
@@ -202,16 +225,57 @@ char* parsetype(int type) {
 		}
 }
 
-char* parseaccess(long acl) {
-	//Next check the binary to see if we've only got read only permissions. 
-	if (acl & SMBC_DOS_MODE_READONLY)
-		return "READ";
-	else 
-	//Otherwise we have write permissions. 
-		return "WRITE";
+int parse_acl(const char * ace, char ** princ, unsigned int * i1, unsigned int * i2, unsigned int * i3) {
+	unsigned int *atype = i1;
+	unsigned int *aflags = i2;
+	unsigned int *amask = i3;
+
+	char *p = strchr(ace, ':');
+	if(!p) {
+		return 0;
+	}
+	*p = '\0';
+	p++;
+
+	*princ = malloc(strlen(ace) + 1);
+	if(!*princ) {
+		return 0;
+	}
+	strcpy(*princ, ace);
+
+	if(sscanf(p, "%u/%u/%x", atype, aflags, amask) == 3) {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
-uint parsehidden(long acl) {
+char * parse_accessmask(unsigned int acl) {
+	char tmpaccess[128] = "";
+
+	if(acl & ACCESS_FILE_READ_DATA)
+		strcat(tmpaccess, "READ|");
+	if(acl & ACCESS_FILE_WRITE_DATA)
+		strcat(tmpaccess, "WRITE|");
+	if(acl & ACCESS_FILE_APPEND_DATA)
+		strcat(tmpaccess, "APPEND|");
+	if(acl & ACCESS_FILE_READ_EA)
+		strcat(tmpaccess, "READEA|");
+	if(acl & ACCESS_FILE_WRITE_EA)
+		strcat(tmpaccess, "WRITEEA|");
+	if(acl & ACCESS_FILE_EXECUTE)
+		strcat(tmpaccess, "EXECUTE|");
+	if(acl & ACCESS_STANDARD_DELETE)
+		strcat(tmpaccess, "DELETE|");
+
+	if(tmpaccess[strlen(tmpaccess)-1] == '|') {
+		tmpaccess[strlen(tmpaccess)-1] = '\0';
+	}
+
+	return strdup(tmpaccess);
+}
+
+uint parse_hidden(long acl) {
 	//Check to see if the hidden flag is set, if so lets return it
 	if (acl & SMBC_DOS_MODE_HIDDEN)
 		return 1;

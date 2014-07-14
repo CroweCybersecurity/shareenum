@@ -1,16 +1,17 @@
 #include "smbresult.h"
 
 smbresult* createSMBResultEmpty() {
-	return createSMBResult("", "", "", 0, 0, -1);
+	return createSMBResult("", "", "", 0, "", 0, -1);
 }
 
-smbresult* createSMBResult(char *host, char *share, char *object, int type, long acl, int statuscode) {
+smbresult* createSMBResult(char *host, char *share, char *object, int type, char *acl, unsigned int mode, int statuscode) {
 	smbresult *tmp = malloc(sizeof(smbresult));
 	tmp->host = strdup(host);
 	tmp->share = strdup(share);
 	tmp->object = strdup(object);
 	tmp->type = type;
 	tmp->acl = acl;
+	tmp->mode = mode;
 	tmp->statuscode = statuscode;
 	return tmp;
 }
