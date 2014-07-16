@@ -157,7 +157,6 @@ int main(int argc, char * argv[]) {
 		FILE            *infile = fopen ( target, "r" ); //Open the file
 		int             current = 0;                     //Set a counter for where we're at in the file
 		int             total = file_countlines(infile); //Count the total number of lines in the file
-		int             totallen = numdigits(total);     //And the number of digits in that total for pretty output
 		char            infile_buf[1024];                //And a buffer to read the file into!
 
 		if ( infile != NULL ) {                          //If our input file loaded properly...
@@ -173,10 +172,9 @@ int main(int argc, char * argv[]) {
 					infile_buf[strlen(infile_buf) - 1] = '\0';
 				}
 
-				fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, current, total, infile_buf);
 
 				head = runtarget(infile_buf, recursion);                     //Run the target and get results
-				printsmbresultlist(head, outfile, target);
+				printsmbresultlist(head, outfile, infile_buf, current, total);
 			}
 		} else {
 			perror ( target );                                          //If the file didn't load, print the error. 
@@ -188,20 +186,21 @@ int main(int argc, char * argv[]) {
 	} else {
 
 		head = runtarget(target, recursion);                             //Run the target and get results
-		printsmbresultlist(head, outfile, target);
+		printsmbresultlist(head, outfile, target, 1, 1);
 	}
 
 	fclose(outfile);                                                         //Close our file handle, because we're good programmers
 }
 
-int printsmbresultlist(smbresultlist *head, FILE *outfile, char *target) {
+int printsmbresultlist(smbresultlist *head, FILE *outfile, char *target, int cur, int total) {
 	uint                headlen = 0;       //Hold the length of our linked list at output time.
+	int                 totallen = numdigits(total);     //And the number of digits in that total for pretty output
 	smbresult           *tmp;              //Item to hold the temp results as we loop through objects
 	char                *outbuf;           //Output buffer to hold some stuff.
 
 	headlen = smbresultlist_length(head);
 
-	fprintf(stdout, ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, target);
+	fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, cur, total, target);
 
 	if(smbresultlist_length(head) > 1) {
 		while(smbresultlist_pop(&head, &tmp)) {                      //Loop through the llist of results and put them in tmp
