@@ -20,7 +20,7 @@ int main(int argc, char * argv[]) {
 
 	//Print a header so we know the versions
 	fprintf(stdout, "%s", banner);
-	fprintf(stdout, ANSI_COLOR_BOLDWHITE"%*s %d.%d build %d\n"ANSI_COLOR_RESET, 57-numdigits(BUILD_NUMBER),"Version", MAJOR_REVISION, MINOR_REVISION, BUILD_NUMBER);
+	fprintf(stdout, ANSI_COLOR_BOLDWHITE"%*s %s\n\n"ANSI_COLOR_RESET, 67-strlen(GIT_VERSION), "Version", GIT_VERSION);
 
 
 /*************************************************************************************

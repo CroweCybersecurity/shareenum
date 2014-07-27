@@ -351,14 +351,14 @@ static SMBCCTX* create_context(void) {
 
 static void delete_context(SMBCCTX *ctx) {
 	//Trying to fix the error:  no talloc stackframe at ../source3/libsmb/cliconnect.c:2637, leaking memory
-	TALLOC_CTX *frame = talloc_stackframe();
+	//TALLOC_CTX *frame = talloc_stackframe();
 
 	//First we need to purge the cache of servers the context has.
 	//This should also free all the used memory allocations.
 	smbc_getFunctionPurgeCachedServers(ctx)(ctx);
 
 	//We're done with the frame, free it up now.
-	TALLOC_FREE(frame);
+	//TALLOC_FREE(frame);
 
 	//Next we need to free the context itself, and free all the 
 	//memory it used.
