@@ -1,15 +1,13 @@
 GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always)
 
 CC=gcc
-CFLAGS=-DGIT_VERSION=\"$(GIT_VERSION)\" -I/usr/local/samba/include -I. 
-LDFLAGS=-Wl,-rpath=/usr/lib/shareenum -L/usr/local/samba/lib -lsmbclient -ltalloc -ltdb -ldl
+CFLAGS=-m32 -DGIT_VERSION=\"$(GIT_VERSION)\" -I/usr/local/samba/include -I. 
+LDFLAGS=-m32 -Wl,-rpath=/usr/local/shareenum/lib -L/usr/local/samba/lib -lsmbclient -ltalloc -ltdb -ldl
 
 SOURCES=helpers.c smbresult.c smb.c main.c
 OBJECTS=$(SOURCES:.c=.o)
 
 all: shareenum
-
-release: shareenum
 
 debug: CFLAGS += -g -O0 -DDEBUG -lresolv
 debug: shareenum 
