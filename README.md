@@ -4,7 +4,7 @@ shareenum
 This is a tool that attempts to enumerate the permissions shares, directories, and files on Microsoft Windows systems.  Using an implementation of the Samba (http://www.samba.org/) libsmbclient libraries this tool makes a SMB connection to a host and recursively gathers information over the file and directory entities, compared to several other share enumeration tools that use RPC calls to gather similar information.  Both ways work, this was a bit easier to implement and ends up being a lot faster.  
 
 ```sh
-./shareenum -o output.csv -u DOMAIN\\username -p Password1 192.168.1.1
+shareenum -o output.csv -u DOMAIN\\username -p Password1 192.168.1.1
 ```
 
 License
