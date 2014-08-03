@@ -3,12 +3,14 @@ BINFILE=../src/shareenum
 DSTDIR=/usr/local/shareenum
 
 install:
+	mkdir -p $(DSTDIR)/bin/
 	cp $(BINFILE) $(DSTDIR)/bin/
 
 deb: 
 	fpm -s dir -t deb -n "shareenum" -v 2.0.rc1 --before-remove beforeremove.sh --after-install afterinstall.sh --url https://github.com/emperorcow/shareenum --description "Tool for gathering permissions from MS shares" $(DSTDIR)/
 
 libprep: 
+	mkdir -p $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/libsmbclient.so.0 $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/libsamba-util.so.0 $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/private/libreplace.so $(DSTDIR)/lib/
@@ -77,3 +79,4 @@ libprep:
 	cp $(SAMBAROOT)/private/libauth_sam_reply.so $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/private/libflag_mapping.so $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/private/libtdb.so.1 $(DSTDIR)/lib/
+	echo "Done."
