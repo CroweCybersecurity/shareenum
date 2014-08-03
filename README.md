@@ -1,7 +1,7 @@
 shareenum
 ==
 
-This is a tool that attempts to enumerate the permissions shares, directories, and files on Microsoft Windows systems.  Using an implementation of the Samba (http://www.samba.org/) libsmbclient libraries this tool makes a SMB connection to a host and recursively gathers information over the file and directory entities, compared to several other share enumeration tools that use RPC calls to gather similar information.  Both ways work, this was a bit easier to implement.
+This is a tool that attempts to enumerate the permissions shares, directories, and files on Microsoft Windows systems.  Using an implementation of the Samba (http://www.samba.org/) libsmbclient libraries this tool makes a SMB connection to a host and recursively gathers information over the file and directory entities, compared to several other share enumeration tools that use RPC calls to gather similar information.  Both ways work, this was a bit easier to implement and ends up being a lot faster.  
 
 ```sh
 ./shareenum -o output.csv -u DOMAIN\\username -p Password1 192.168.1.1
@@ -32,23 +32,20 @@ Usage: shareenum -o FILE TARGET
 
 > TARGET and FILE are required.
 
+Download
+--
+We have provided deb binary files for Kali Linux to aid with installation.  These binary files include both shareenum itself, as well as the correct Samba versions of the libraries to allow Shareenum to execute.  You can download the latest releases here:
+
+https://github.com/emperorcow/shareenum/releases
+
 Installation
 --
+To install these binaries, its as simple as: 
 
 ```sh
-git clone https://github.com/emperorcow/shareenum.git shareenum
-cd shareenum
-make
+dpkg -i shareenum_version.deb
 ```
 
-This tool requires the following packages to run on Kali: 
+Make sure that you get the correct version for your system (i386 for 32bit and amd64 for 64bit).  
 
-* libsmbclient
-* samba
-* samba-common-bin
-
-If you want to compile it, you'll also need:
-
-* libsmbclient-dev
-* samba-dev
 
