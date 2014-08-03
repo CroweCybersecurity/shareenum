@@ -9,7 +9,7 @@
  * object     - The full path in the share to the object
  * type       - The type of object (printer, file share, etc.)
  * acl        - string containing the permissions
- * statuscode - The result of pulling object data, 0 for success and >0 for smb error codes, <0 for our error codes.
+ * statuscode - The result of pulling object data, 0 for success and >0 for smb error codes.
  */
 typedef struct smbresult {
 	char*        host;

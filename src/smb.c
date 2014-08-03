@@ -123,7 +123,15 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 	return thisresults;
 }
 
-void smbresult_tocsv(smbresult data, char **buf, char *ace) {
+size_t smbresult_tocsv(smbresult data, char **buf, char *ace) {
+	if(data.statuscode == NULL) {
+		return 0;
+	}
+
+	if(data.statuscode <= 0) {
+		return 0;
+	}
+
 	//parsehidden returns 0 or 1, so we need a quick if statement
 	char hidden = ' ';
 	if(parse_hidden(data.mode))
@@ -138,7 +146,7 @@ void smbresult_tocsv(smbresult data, char **buf, char *ace) {
 	//Parse the entry, if we can't then just quit because we got bad data.
 	if(ace != NULL) {
 		if(parse_acl(ace, &principal, &atype, &aflags, &amask) == 0) {
-			return;
+			return 0;
 		}
 	}
 
@@ -168,6 +176,8 @@ void smbresult_tocsv(smbresult data, char **buf, char *ace) {
 	*buf = strdup(buffer);
 
 	free(buffer);
+
+	return size+1;
 }
 
 void parse_smburl(char *url, char **host, char **share, char **object) {

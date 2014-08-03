@@ -209,22 +209,29 @@ int printsmbresultlist(smbresultlist *head, FILE *outfile, char *target, int cur
 	if(smbresultlist_length(head) > 1) {
 		while(smbresultlist_pop(&head, &tmp)) {                      //Loop through the llist of results and put them in tmp
 			char *token;
-	
-			token = strtok(tmp->acl, ",");
-			while(token != NULL) {
-				smbresult_tocsv(*tmp, &outbuf, token);               //Convert tmp to a CSV
-				fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
-				token = strtok(NULL, ",");
+
+			if(tmp->statuscode > 0) {
+				fprintf(outfile, "\"%s\",\"%s\",\"%s\",\"\",\"\",\"\",\"%s (Code: %d)\",\"\"\n", gUsername, tmp->host, tmp->share, strerror(tmp->statuscode), tmp->statuscode);
+			} else {
+				token = strtok(tmp->acl, ",");
+				while(token != NULL) {
+					if(smbresult_tocsv(*tmp, &outbuf, token) > 0) {              //Convert tmp to a CSV
+						fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
+					}
+					token = strtok(NULL, ",");
+				}
 			}
 		}
 		fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", headlen);
 	} else {
-		if(head->data->statuscode == 0) {
-			smbresult_tocsv(*head->data, &outbuf, NULL);         //Convert tmp to a CSV
-			fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
-			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on 1 object.\n");
-		} else {
+		if(head->data->statuscode > 0) {
+			fprintf(outfile, "\"%s\",\"%s\",\"%s\",\"\",\"\",\"\",\"%s (Code: %d)\",\"\"\n", gUsername, head->data->host, head->data->share, strerror(head->data->statuscode), head->data->statuscode);
 			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(head->data->statuscode), head->data->statuscode);
+		} else {
+			if(smbresult_tocsv(*head->data, &outbuf, NULL) > 0) {     //Convert tmp to a CSV
+				fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
+			}
+			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on 1 object.\n");
 		}
 	}
 }

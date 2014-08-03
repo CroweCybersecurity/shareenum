@@ -26,9 +26,9 @@ smbresultlist* runtarget(char *target, int maxdepth);
  *   data - The smbresult containing the data to format.
  *   buf  - Pointer to the string buffer where we should put the output.
  *   ace  - An access control entry string in the format PRINCIPAL:TYPE/FLAGS/MASK
- * RETURN (void): None
+ * RETURN (size_t): The size of the string we put in buf.  0 if error
  */
-void smbresult_tocsv(smbresult data, char **buf, char *ace);
+size_t smbresult_tocsv(smbresult data, char **buf, char *ace);
 
 /* This is the function that browses a system and attempts to list all of the shares.
  *

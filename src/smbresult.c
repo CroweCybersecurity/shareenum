@@ -1,7 +1,7 @@
 #include "smbresult.h"
 
 smbresult* createSMBResultEmpty() {
-	return createSMBResult("", "", "", 0, "", 0, -1);
+	return createSMBResult("", "", "", 0, "", 0, 0);
 }
 
 smbresult* createSMBResult(char *host, char *share, char *object, int type, char *acl, unsigned int mode, int statuscode) {
