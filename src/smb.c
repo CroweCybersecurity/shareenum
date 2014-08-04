@@ -124,11 +124,7 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 }
 
 size_t smbresult_tocsv(smbresult data, char **buf, char *ace) {
-	if(data.statuscode == NULL) {
-		return 0;
-	}
-
-	if(data.statuscode <= 0) {
+	if(data.statuscode < 0) {
 		return 0;
 	}
 
