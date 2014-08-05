@@ -1,3 +1,4 @@
+GIT_VERSION := $(shell git describe --abbrev=4 --dirty --always)
 SAMBAROOT=/usr/local/samba/lib
 BINFILE=../src/shareenum
 DSTDIR=/usr/local/shareenum
@@ -7,7 +8,7 @@ install:
 	cp $(BINFILE) $(DSTDIR)/bin/
 
 deb: 
-	fpm -s dir -t deb -n "shareenum" -v 2.0.rc1 --before-remove beforeremove.sh --after-install afterinstall.sh --url https://github.com/emperorcow/shareenum --description "Tool for gathering permissions from MS shares" $(DSTDIR)/
+	fpm -s dir -t deb -n "shareenum" -v $(GIT_VERSION) --before-remove beforeremove.sh --after-install afterinstall.sh --url https://github.com/emperorcow/shareenum --description "Tool for gathering permissions from MS shares" $(DSTDIR)/
 
 libprep: 
 	mkdir -p $(DSTDIR)/lib/
