@@ -182,6 +182,10 @@ void parse_smburl(char *url, char **host, char **share, char **object) {
 	char       *last;
 	const char sep[2] = "/";
 
+	//Zero out our buffer to make sure we don't have any stray characters later
+	memset(buf, 0, sizeof(buf));
+
+	//Remove the protocol from the URL
 	if(strncmp("smb://", url, 6) == 0) 
 		strncpy(buf, url+6, strlen(url) - 5);
 	else
