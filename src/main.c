@@ -12,15 +12,24 @@ int main(int argc, char * argv[]) {
 	FILE *          outfile;
 	char *          target = NULL;
 	int             linedelay = 0; // -r command line option
-	int             recursion = 1; // -r command line option
+	int             recursion = 0; // -r command line option
 	int             startline = 0; // -s command line argument
 	int             c; //For getopt
 	const char *    l; //For length of the hash, if we got one
 	char            hash[33]; //To store our hash if the user gave us.
 
-	//Print a header so we know some stuff
+	//Print a header so we know the versions
 	fprintf(stdout, "%s", banner);
-	fprintf(stdout, ANSI_COLOR_BOLDWHITE"%*s %d.%d build %d\n"ANSI_COLOR_RESET, 57-numdigits(BUILD_NUMBER),"Version", MAJOR_REVISION, MINOR_REVISION, BUILD_NUMBER);
+#ifdef DEBUG
+	fprintf(stdout, ANSI_COLOR_BOLDWHITE"%*s %s-DEBUG\n\n"ANSI_COLOR_RESET, 61-strlen(GIT_VERSION), "Version", GIT_VERSION);
+#else
+	fprintf(stdout, ANSI_COLOR_BOLDWHITE"%*s %s\n\n"ANSI_COLOR_RESET, 67-strlen(GIT_VERSION), "Version", GIT_VERSION);
+#endif
+
+
+/*************************************************************************************
+ * COMMAND LINE ARGUMENTS
+ ************************************************************************************/
 
 	/* Get all of our command line options with GetOpt
 	 * Basically, here we use getopt to loop through the arguments
@@ -95,6 +104,10 @@ int main(int argc, char * argv[]) {
 		}
 	}
 
+/*************************************************************************************
+ * CHECK AND SETUP
+ ************************************************************************************/
+
 	//Get the target (IP or file) from the last item in argv.  Optind
 	//is from getopt telling us where it stopped. 
 	target = argv[optind];
@@ -113,7 +126,7 @@ int main(int argc, char * argv[]) {
 		exit(1);
 	}
 
-	//Tell the user what creds we're using, if any.  Because they're whiny and dumb sometimes.
+	//Tell the user what creds we're using, if any.  Because we want to make sure they know.
 	fprintf(stdout, "\n");
 	fprintf(stdout, ANSI_COLOR_BOLDGREEN "Username: " ANSI_COLOR_RESET "%s\n", gUsername);
 	if(gPassIsHash == 1)
@@ -122,101 +135,118 @@ int main(int argc, char * argv[]) {
 		fprintf(stdout, ANSI_COLOR_BOLDGREEN "Password: " ANSI_COLOR_RESET "%s\n", gPassword);
 	fprintf(stdout, "\n");
 
-	//Wait three seconds because McAtee is stupid
-	sleep(3);
-
 	//If debugging is on, print out the other variables we got on the cmd line.
 #ifdef DEBUG
 		fprintf(stdout, "Target: %s\n", argv[optind]);
 		fprintf(stdout, "Start Point: %d\n", startline);
 #endif
 
+	//Wait three seconds because McAtee
+	sleep(3);
+
 	//Try and turn off buffering on stdout. 
 	setbuf(stdout, NULL);
 
+/*************************************************************************************
+ * RUNNING OF SHARES
+ ************************************************************************************/
+
+	if(startline == 0)                                   //If we're starting at 0, print the headers.  
+		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PRINCIPAL\",\"NTFS_PERMISSIONS\",\"HIDDEN\"\n");
+
+	smbresultlist       *head = NULL;      //Struct to hold the results info
+
 	//If the target we got is a file.
 	if(file_exists(target)) {
-		//Open the file
-		FILE * 			infile = fopen ( target, "r" );
-		//Set a counter for where we're at in the file
-		int 			current = 0;
-		//Count the total number of lines in the file
-		int 			total = file_countlines(infile);
-		//And the number of digits in that total for pretty output
-		int				totallen = numdigits(total);
-		//Create a struct for our results to print
-		smb_result 		res;
-		//And a buffer to read the file into!
-		char 			buf[1024];
+		FILE            *infile = fopen ( target, "r" ); //Open the file
+		int             current = 0;                     //Set a counter for where we're at in the file
+		int             total = file_countlines(infile); //Count the total number of lines in the file
+		char            infile_buf[1024];                //And a buffer to read the file into!
 
-		//If our input file loaded properly...
-		if ( infile != NULL ) {
+		if ( infile != NULL ) {                          //If our input file loaded properly...
+			while ( fgets ( infile_buf, sizeof(infile_buf), infile ) != NULL ) {       //Read our file one line at a time into the buffer
+				current++;                                 //We did it!  Increment where we're at
 
-			//If we're starting at 0, print the headers.  Otherwise assume
-			//we're restarting from an error or user shutdown/Ctrl-C.
-			if(startline == 0)
-				fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
+				if(current < startline) continue;          //Go ahead and skip until we get the line we want if set.
 
-			//Read our file one line at a time into the buffer
-			while ( fgets ( buf, sizeof(buf), infile ) != NULL ) {
-				//We did it!  Increment where we're at
-				current++;
-
-				//Go ahead and skip until we get the line we want if set.
-				if(current < startline) continue; 
-
-				//Check to make sure that our file doesn't have any newlines
-				//or carriage returns left. 
-				if (buf[strlen(buf) - 1] == '\n') {
-					buf[strlen(buf) - 1] = '\0';
+				if (infile_buf[strlen(infile_buf) - 1] == '\n') {      //Check to make sure that our file doesn't have any newlines or returns
+					infile_buf[strlen(infile_buf) - 1] = '\0';
 				}
-				if (buf[strlen(buf) - 1] == '\r') {
-					buf[strlen(buf) - 1] = '\0';
+				if (infile_buf[strlen(infile_buf) - 1] == '\r') {
+					infile_buf[strlen(infile_buf) - 1] = '\0';
 				}
 
-				fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, current, total, buf);
 
-				//Run the target that we pulled from the file and get the results. 
-				res = runhost(buf, outfile, recursion);
-
-				//We'll delay as long as our user asked. 
-				sleep(linedelay);
+				head = runtarget(infile_buf, recursion);                     //Run the target and get results
+				printsmbresultlist(head, outfile, infile_buf, current, total);
 			}
 		} else {
-			//If the file didn't load, print the error. 
-			perror ( target );
+			perror ( target );                                          //If the file didn't load, print the error. 
 		}
 
-		//Close our file handle, because we're good C programmers that don't 
-		//like memory leaks. 
-		fclose(outfile);
+		sleep(linedelay);                                                   //We'll delay as long as our user asked. 
 
-	//Otherwise we'll assume our target is an IP or hostname
+	//Otherwise we'll assume our target is an IP or hostname and won't do anything fancy
 	} else {
-		//struct to hold our results!
-		smb_result 		res;
 
-		//Print the header
-		fprintf(outfile, "\"USER\",\"HOST\",\"SHARE\",\"OBJECT\",\"TYPE\",\"PERMISSIONS\",\"HIDDEN\"\n");
-
-		//Print the output for the user too so they know something happened.
-		if(res.code > 0) {
-			fprintf(stdout, ANSI_COLOR_CYAN "%-20s " ANSI_COLOR_RESET, target);
-		} else if (res.code == 0) {
-			fprintf(stdout, ANSI_COLOR_CYAN "%-20s " ANSI_COLOR_RESET, target);
-		} else {
-			fprintf(stdout, ANSI_COLOR_CYAN "%-20s " ANSI_COLOR_RESET, target);
-		}
-
-		//Run the target and get results
-		res = runhost(target, outfile, recursion);
+		head = runtarget(target, recursion);                             //Run the target and get results
+		printsmbresultlist(head, outfile, target, 1, 1);
 	}
 
-	// We're done, quit and tell the system it worked.
-	exit(0);
+	fclose(outfile);                                                         //Close our file handle, because we're good programmers
 }
 
-//If you don't get this, go home and never program again.
+int printsmbresultlist(smbresultlist *head, FILE *outfile, char *target, int cur, int total) {
+	uint                headlen = 0;       //Hold the length of our linked list at output time.
+	int                 totallen = numdigits(total);     //And the number of digits in that total for pretty output
+	smbresult           *tmp;              //Item to hold the temp results as we loop through objects
+	char                *outbuf;           //Output buffer to hold some stuff.
+	int                 numsuccess = 0;
+        int                 numerror = 0;
+
+
+	headlen = smbresultlist_length(head);
+
+	fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, cur, total, target);
+
+	while(smbresultlist_pop(&head, &tmp)) {                      //Loop through the llist of results and put them in tmp
+		char *token;
+
+		if(tmp->statuscode > 0) {
+			fprintf(outfile, "\"%s\",\"%s\",\"%s\",\"\",\"\",\"\",\"%s (Code: %d)\",\"\"\n", gUsername, tmp->host, tmp->share, strerror(tmp->statuscode), tmp->statuscode);
+			numerror++;
+		} else {
+			token = strtok(tmp->acl, ",");
+			while(token != NULL) {
+				if(smbresult_tocsv(*tmp, &outbuf, token) > 0) {              //Convert tmp to a CSV
+					fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
+					fflush(outfile);
+				}
+				token = strtok(NULL, ",");
+			}
+			numsuccess++;
+		}
+	}
+
+	//Now we print a message to the user so they know sutff is happening
+	if(numerror == 0 && numsuccess > 0) { //Only success
+		fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", numsuccess);
+	} else if (numerror > 0 && numsuccess == 0) { //Only errors
+		if(numerror == 1) { //Give the user the error directly if there's only 1
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] Error (%d): %s\n", tmp->statuscode, strerror(tmp->statuscode));
+		} else {
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] Errors on %d objects.\n", numerror);
+		}
+	} else if (numerror > 0 && numsuccess > 0) { //Both success and error
+		fprintf(stdout, "[" ANSI_COLOR_BOLDYELLOW "*" ANSI_COLOR_RESET "] Got %d objects with errors on %d.\n", numsuccess, numerror);
+	} else { //No success or errors, we got nothing.
+		fprintf(stdout, "[" ANSI_COLOR_MAGENTA "!" ANSI_COLOR_RESET "] Received no information.\n");
+	}
+
+	free(tmp);
+}
+
+//If you don't get this, try again harder
 void usage() {
 	printf("Usage: shareenum -o FILE TARGET\n");
 	printf("    TARGET  - REQUIRED Full path or a file of paths to list the shares, files\n");
