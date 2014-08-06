@@ -93,6 +93,7 @@ static smbresultlist* browse(SMBCCTX *ctx, char *path, int maxdepth, int depth) 
 			char permerrbuf[100];
 			sprintf(permerrbuf, "Unable to pull permissions (%d): %s", errno, strerror(errno));
 			thisresult->acl = strdup(permerrbuf);
+			thisresult->statuscode = errno;
 		} else {
 			thisresult->acl = strdup(acl);
 		}

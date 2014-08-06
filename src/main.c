@@ -12,7 +12,7 @@ int main(int argc, char * argv[]) {
 	FILE *          outfile;
 	char *          target = NULL;
 	int             linedelay = 0; // -r command line option
-	int             recursion = 1; // -r command line option
+	int             recursion = 0; // -r command line option
 	int             startline = 0; // -s command line argument
 	int             c; //For getopt
 	const char *    l; //For length of the hash, if we got one
@@ -201,39 +201,49 @@ int printsmbresultlist(smbresultlist *head, FILE *outfile, char *target, int cur
 	int                 totallen = numdigits(total);     //And the number of digits in that total for pretty output
 	smbresult           *tmp;              //Item to hold the temp results as we loop through objects
 	char                *outbuf;           //Output buffer to hold some stuff.
+	int                 numsuccess = 0;
+        int                 numerror = 0;
+
 
 	headlen = smbresultlist_length(head);
 
 	fprintf(stdout, ANSI_COLOR_BOLDBLUE "(%*d/%d) " ANSI_COLOR_BOLDCYAN "%-25s " ANSI_COLOR_RESET, totallen, cur, total, target);
 
-	if(smbresultlist_length(head) > 1) {
-		while(smbresultlist_pop(&head, &tmp)) {                      //Loop through the llist of results and put them in tmp
-			char *token;
+	while(smbresultlist_pop(&head, &tmp)) {                      //Loop through the llist of results and put them in tmp
+		char *token;
 
-			if(tmp->statuscode > 0) {
-				fprintf(outfile, "\"%s\",\"%s\",\"%s\",\"\",\"\",\"\",\"%s (Code: %d)\",\"\"\n", gUsername, tmp->host, tmp->share, strerror(tmp->statuscode), tmp->statuscode);
-			} else {
-				token = strtok(tmp->acl, ",");
-				while(token != NULL) {
-					if(smbresult_tocsv(*tmp, &outbuf, token) > 0) {              //Convert tmp to a CSV
-						fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
-					}
-					token = strtok(NULL, ",");
-				}
-			}
-		}
-		fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", headlen);
-	} else {
-		if(head->data->statuscode > 0) {
-			fprintf(outfile, "\"%s\",\"%s\",\"%s\",\"\",\"\",\"\",\"%s (Code: %d)\",\"\"\n", gUsername, head->data->host, head->data->share, strerror(head->data->statuscode), head->data->statuscode);
-			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] %s (Code: %d)\n", strerror(head->data->statuscode), head->data->statuscode);
+		if(tmp->statuscode > 0) {
+			fprintf(outfile, "\"%s\",\"%s\",\"%s\",\"\",\"\",\"\",\"%s (Code: %d)\",\"\"\n", gUsername, tmp->host, tmp->share, strerror(tmp->statuscode), tmp->statuscode);
+			numerror++;
 		} else {
-			if(smbresult_tocsv(*head->data, &outbuf, NULL) > 0) {     //Convert tmp to a CSV
-				fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
+			token = strtok(tmp->acl, ",");
+			while(token != NULL) {
+				if(smbresult_tocsv(*tmp, &outbuf, token) > 0) {              //Convert tmp to a CSV
+					fprintf(outfile, "\"%s\",%s\n", gUsername, outbuf);  //Print it to our file
+					fflush(outfile);
+				}
+				token = strtok(NULL, ",");
 			}
-			fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on 1 object.\n");
+			numsuccess++;
 		}
 	}
+
+	//Now we print a message to the user so they know sutff is happening
+	if(numerror == 0 && numsuccess > 0) { //Only success
+		fprintf(stdout, "[" ANSI_COLOR_GREEN "x" ANSI_COLOR_RESET "] Got information on %d objects.\n", numsuccess);
+	} else if (numerror > 0 && numsuccess == 0) { //Only errors
+		if(numerror == 1) { //Give the user the error directly if there's only 1
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] Error (%d): %s\n", tmp->statuscode, strerror(tmp->statuscode));
+		} else {
+			fprintf(stdout, "[" ANSI_COLOR_RED "!" ANSI_COLOR_RESET "] Errors on %d objects.\n", numerror);
+		}
+	} else if (numerror > 0 && numsuccess > 0) { //Both success and error
+		fprintf(stdout, "[" ANSI_COLOR_BOLDYELLOW "*" ANSI_COLOR_RESET "] Got %d objects with errors on %d.\n", numsuccess, numerror);
+	} else { //No success or errors, we got nothing.
+		fprintf(stdout, "[" ANSI_COLOR_MAGENTA "!" ANSI_COLOR_RESET "] Received no information.\n");
+	}
+
+	free(tmp);
 }
 
 //If you don't get this, try again harder
