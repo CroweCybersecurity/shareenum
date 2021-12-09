@@ -341,6 +341,9 @@ static SMBCCTX* create_context(void) {
 	smbc_setOptionDebugToStderr(ctx, 1);
 #endif
 
+//set protocols
+smbc_setOptionProtocols(ctx, "CORE", "SMB3");
+
 	//Set the function that the Samba library will call when it needs
 	//to authenticate
 	smbc_setFunctionAuthData(ctx, auth_fn);

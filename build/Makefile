@@ -12,8 +12,8 @@ deb:
 
 libprep: 
 	mkdir -p $(DSTDIR)/lib/
-	cp $(SAMBAROOT)/libsmbclient.so.0 $(DSTDIR)/lib/
-	cp $(SAMBAROOT)/libsamba-util.so.0 $(DSTDIR)/lib/
+	cp /usr/lib/x86_64-linux-gnu/libsmbclient.so.0 $(DSTDIR)/lib/
+	cp /usr/lib/x86_64-linux-gnu/libsamba-util.so.0 $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/private/libreplace.so $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/private/libmsrpc3.so $(DSTDIR)/lib/
 	cp $(SAMBAROOT)/private/liblibcli_lsa3.so $(DSTDIR)/lib/
