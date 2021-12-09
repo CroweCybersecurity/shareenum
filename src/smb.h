@@ -4,8 +4,8 @@
 #include <string.h> //C "string" library
 #include <stdlib.h> //GNU standard library
 #include <stdbool.h> //Enable C99 booleans for the talloc stuff in samba
-#include <libsmbclient.h> //Samba client headers
-#include <util/talloc_stack.h> //Samba TALLOC stack
+#include <samba-4.0/libsmbclient.h> //Samba client headers
+#include <samba-4.0/talloc_stack.h> //Samba TALLOC stack
 #include "smbresult.h"
 
 /* Run a check against a host.  This creates a Samba context, browses to the path
